@@ -35,7 +35,17 @@ main(async () => {
   };
   const dryRun = hasFlag('dry-run');
   const gl = dryRun ? undefined : gitlab();
-  const known = gl ? await gl.listIssues('labels=undertaker::candidate&state=all&per_page=100') : [];
+  // `undertaker::` labels are scoped, so an issue carries exactly one of them: in-progress and do-not-bury
+  // replace candidate. Dedupe (and honour do-not-bury) across all three.
+  const known = gl
+    ? (
+        await Promise.all(
+          ['candidate', 'in-progress', 'do-not-bury', 'buried'].map((l) =>
+            gl.listIssues(`labels=undertaker::${l}&state=all&per_page=100`),
+          ),
+        )
+      ).flat()
+    : [];
   const exclude = new Set(
     known
       .filter((i) => i.labels.includes('undertaker::do-not-bury'))
@@ -63,16 +73,15 @@ main(async () => {
 
   // Publish observed traffic to the ledger branch for the verify-stage replay.
   const trafficJson = `${JSON.stringify(stats.routeHits, null, 2)}\n`;
-  const hadTraffic = (await gl.getFile('traffic.json', LEDGER_BRANCH)) !== undefined;
-  if (await gl.branchExists(LEDGER_BRANCH)) {
-    await gl.commit({
-      branch: LEDGER_BRANCH,
-      commit_message: `census: ${stats.requests} requests, ${candidates.length} candidates [skip ci]`,
-      actions: [
-        { action: hadTraffic ? 'update' : 'create', file_path: 'traffic.json', content: trafficJson },
-      ],
-    });
-  }
+  const ledgerExists = await gl.branchExists(LEDGER_BRANCH);
+  const hadTraffic = ledgerExists && (await gl.getFile('traffic.json', LEDGER_BRANCH)) !== undefined;
+  // The first census usually runs before any ledger write, so it creates the branch from the default branch.
+  await gl.commit({
+    branch: LEDGER_BRANCH,
+    start_branch: ledgerExists ? undefined : (env.CI_DEFAULT_BRANCH ?? 'main'),
+    commit_message: `census: ${stats.requests} requests, ${candidates.length} candidates [skip ci]`,
+    actions: [{ action: hadTraffic ? 'update' : 'create', file_path: 'traffic.json', content: trafficJson }],
+  });
 
   for (const c of candidates) {
     const zone = c.file ? zoneFor(policy, c.file)?.name : undefined;

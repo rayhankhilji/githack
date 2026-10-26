@@ -63,6 +63,7 @@ main(async () => {
   if (decision.verdict === 'needs_human') return;
 
   if (mr.draft) await gl.updateMr(iid, { title: mr.title.replace(/^(Draft:|\[Draft\]|\(Draft\))\s*/i, '') });
-  await gl.mergeMr(iid, env.CI_COMMIT_SHA ?? '');
+  // In merged-results pipelines CI_COMMIT_SHA is the merge ref, not the source HEAD the merge API checks.
+  await gl.mergeMr(iid, env.CI_MERGE_REQUEST_SOURCE_BRANCH_SHA || env.CI_COMMIT_SHA || '');
   console.log(`MR !${iid}: ${decision.verdict}, auto-merge set.`);
 });

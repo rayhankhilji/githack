@@ -108,7 +108,8 @@ main(async () => {
   if (issueRef) {
     const issueIid = issueRef;
     if (outcome === 'survived')
-      await gl.updateIssue(issueIid, { state_event: 'close', remove_labels: 'undertaker::in-progress' });
+      // Scoped label: `buried` replaces in-progress, so the census still recognises the grave.
+      await gl.updateIssue(issueIid, { state_event: 'close', add_labels: 'undertaker::buried' });
     else {
       await gl.updateIssue(issueIid, {
         add_labels: 'undertaker::do-not-bury',

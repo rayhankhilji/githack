@@ -103,7 +103,7 @@ erDiagram
 **Candidate issue:**
 - Title `🪦 <title>`.
 - Body starts with `<!-- undertaker:key=<kind>:<id> -->`.
-- Labels `undertaker::candidate`, `zone::<z>`, `kind::<route|flag|dependency|export>`, plus a lifecycle label: `undertaker::in-progress` or `undertaker::do-not-bury`.
+- Labels `zone::<z>`, `kind::<route|flag|dependency|export>` and exactly one scoped lifecycle label: `undertaker::candidate`, `undertaker::in-progress`, `undertaker::buried` or `undertaker::do-not-bury` (adding one replaces the others).
 
 **MR labels written by the gate:** `probation::<level>` and `zone::<z1+z2>`. `release-plan` reads them back on main.
 
@@ -189,7 +189,7 @@ Both screens are specified in DESIGN_SYSTEM §9.
 |---|---|---|---|---|
 | GitLab REST | MRs, issues, files, commits, releases | Project access token (`api`, Maintainer) | `GITLAB_PROBATION_TOKEN` | Job fails with the API error; retries 429/5xx |
 | GitLab Flows API | Start Undertaker | Owner PAT (`api`) | `DUO_FLOW_TRIGGER_TOKEN`, `UNDERTAKER_CONSUMER_ID` | `undertaker:dig` fails; fallback is the assign trigger |
-| Duo Agent Platform | Runs the flow | Composite identity (service account + triggering user) | — | Flow failure leaves the issue in-progress; remove the label to retry |
+| Duo Agent Platform | Runs the flow | Composite identity (service account + triggering user) | — | Flow failure leaves the issue in-progress; re-add `undertaker::candidate` to retry |
 | Cloud Run / Build / Artifact Registry | Build and host | WIF (`GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`, `GCP_WIF_AUDIENCE`) or `GCP_SA_KEY` | `GCP_PROJECT_ID`, `GCP_REGION` | Release child pipeline fails before traffic moves |
 | Cloud Logging | Census source | Same SA (`roles/logging.viewer`) | `CENSUS_FRESHNESS` (optional) | Empty log means no route or flag candidates |
 | Secret Manager | App API key | Compute SA accessor | — | Deploy fails if the secret is missing |

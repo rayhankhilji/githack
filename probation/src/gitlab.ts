@@ -61,7 +61,9 @@ export class GitLab {
       if (res.ok) return (res.status === 204 ? undefined : await res.json()) as T;
       // Retry rate limits and transient 5xx a few times; everything else is a real error.
       if ((res.status === 429 || res.status >= 500) && attempt < 4) {
-        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+        // GitLab's rate limiter says how long to wait (Retry-After, seconds); otherwise back off 2, 4, 8 s.
+        const retryAfter = Number(res.headers.get('retry-after') ?? Number.NaN);
+        await new Promise((r) => setTimeout(r, retryAfter >= 0 ? retryAfter * 1000 : 1000 * 2 ** attempt));
         continue;
       }
       throw new Error(`GitLab ${method} ${path} → ${res.status}: ${(await res.text()).slice(0, 500)}`);
@@ -90,7 +92,7 @@ export class GitLab {
 
   mergeMr(iid: number, sha: string) {
     return this.call('PUT', `/projects/:id/merge_requests/${iid}/merge`, {
-      sha,
+      sha: sha || undefined,
       auto_merge: true,
       should_remove_source_branch: true,
     });
