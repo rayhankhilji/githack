@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "probation": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["mcp/probation-server.ts"],
+      "env": {
+        "LEDGER_FILE": ".out/mock-ledger.json"
+      },
+      "approvedTools": ["get_trust", "list_graves", "explain_gate", "policy"]
+    }
+  }
+}

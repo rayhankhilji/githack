@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["app/src", "app/test", "probation", "scripts"]
+  "include": ["app/src", "app/test", "probation", "scripts", "mcp"]
 }

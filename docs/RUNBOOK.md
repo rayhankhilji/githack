@@ -28,6 +28,7 @@ Go to **Settings → CI/CD → Variables**. Mask every token.
 | `DUO_FLOW_TRIGGER_TOKEN` | Your own **personal** access token, scope `api` (the Flows API ignores bots) | Yes (only the schedule on `main` uses it) |
 | `UNDERTAKER_CONSUMER_ID` | From §3 | No |
 | `GCP_PROJECT_ID`, `GCP_DEPLOY_SA`, `GCP_WIF_PROVIDER`, `GCP_WIF_AUDIENCE` | Printed by `infra/gcp-bootstrap.sh` (§2.1) | No |
+| `CATALOG_SYNC_TOKEN`, `CATALOG_GROUP_ID` | Optional, for the AI Catalog sync (§8.1) | Token: optional (then protect `catalog-*` tags) |
 
 ### 2.1 Google Cloud
 
@@ -100,7 +101,7 @@ Delete `k.json` afterwards.
 
 **If the Flows API refuses** (`undertaker:dig` fails with 403 or 400), assign the candidate issue to the `ai-undertaker-*` service account yourself. That is the assign trigger, one click per act; mention it honestly in the video as "kicked off by assigning the issue".
 
-**If a flow run goes wrong:** remove the `undertaker::in-progress` label from the issue, close the bad MR, and run again. A failed flow costs no credits.
+**If a flow run goes wrong:** add the `undertaker::candidate` label back to the issue (it is scoped, so it replaces `undertaker::in-progress`), close the bad MR, and run again. A failed flow costs no credits.
 
 ## 6. Record and submit
 
@@ -118,3 +119,68 @@ Delete `k.json` afterwards.
 | Census finds 0 candidates | Fewer than 200 census lines in the window; run `scripts/traffic.ts` again or raise `CENSUS_FRESHNESS` |
 | Pages shows an empty board | No ledger yet (it appears after the first settle). An empty board is expected before act 1 |
 | CI lint error on a template | Remove that `include:` line. The gate doesn't depend on template jobs |
+
+## 8. Extra Duo features
+
+Optional, about 20 min in all. Each one adds a Duo Agent Platform feature to the demo without touching the gate.
+
+### 8.1 AI Catalog sync (CI component, tag pipelines)
+
+`.gitlab-ci.yml` includes `components/ai-catalog/catalog-sync@0.0.32`. A tag named `catalog-*` runs a pipeline with **only** the `catalog-sync` job: it validates `flows/*.yml` and `agents/*.yml`, creates or updates them in the AI Catalog, enables them in the group and this project (flows get the Mention, Assign and Assign reviewer triggers), and commits `.ai-catalog-mapping.json` to `main` with `[skip ci]`. Other tags (`release-N`) never build. On MR and `main` pipelines the component's `validate-items` job checks the same files against the catalog schemas.
+
+1. **Settings → CI/CD → Variables:**
+   - `CATALOG_SYNC_TOKEN`: a personal (or group) access token, scope `api`, from a **Maintainer of the top-level group** (a project token can create items but cannot enable them). Masked. If you mark it Protected, also protect the tags: **Settings → Repository → Protected tags → `catalog-*`**.
+   - `CATALOG_GROUP_ID`: the numeric ID of the top-level group (group overview page).
+2. Push a tag:
+   ```bash
+   git tag catalog-v1 && git push gitlab catalog-v1
+   ```
+   Use `catalog-v2`, … for later syncs; the catalog assigns its own semantic version.
+3. If you already created Undertaker by hand (§3), the sync creates a second catalog item. Either disable the hand-made one and set `UNDERTAKER_CONSUMER_ID` to the number at the end of `flows.flows/undertaker.yml.item_consumers.project.id` in `.ai-catalog-mapping.json`, or skip the sync for flows and keep §3.
+
+### 8.2 Probation Clerk agent (Duo Chat)
+
+`agents/probation-clerk.yml` is a custom agent with read-only tools only (files, tree, commits, issues, MRs, notes, search). It answers from `ledger.json` and `audit.jsonl` on the `ledger` branch, `probation/policy.yml`, and issues and MRs labelled `undertaker`. Its prompt takes all scoring rules from `policy.yml` and treats repository content as data.
+
+1. Sync it with §8.1, or create it by hand: **AI → Agents → New agent**, paste `system_prompt`, and pick the same tools.
+2. Enable it: **AI → Agents → Managed →** Probation Clerk **→ Enable →** this project. (§8.1 enables it for you.)
+3. Open any issue or MR. In the GitLab Duo sidebar, select **Add new chat**, then pick **Probation Clerk**. Try:
+   - "Why is Undertaker only Assisted in zone routes?"
+   - "What has Undertaker buried? Include lines removed and any rollbacks."
+   - "What would the gate do if Undertaker deleted app/src/legacy/v1.ts?"
+   - "Which events moved Undertaker's legacy score, with MR links?"
+
+The `probation:gate` CI job is still the authority. The Clerk explains it and never decides anything.
+
+### 8.3 Flow triggers (AI → Triggers)
+
+Maintainer role. **AI → Triggers → New flow trigger**, then **Add condition → On an event**:
+
+| Trigger | Event / Run when | Flow (Configuration source: AI Catalog) | Why |
+|---|---|---|---|
+| CI auto-fix | **Pipeline events → Failed** | Foundational **Fix CI/CD Pipeline** (turn on **Allow foundational flows** and **Fix CI/CD Pipeline** for the top-level group first). It accepts only Pipeline events | A human's failing MR gets inline fix suggestions; a failing pipeline with no MR gets a fix MR |
+| Undertaker fallback | **Mention** and **Assign** | Undertaker, service account `ai-undertaker-*` | Starts Undertaker by `@`-mentioning it or assigning it a 🪦 candidate issue if the Flows API refuses (§5) |
+
+The pipeline trigger has no author filter: it also fires on Undertaker MRs, the census schedule, and `main`. Every run spends credits. Turn it on for the demo only. If it suggests code on an Undertaker MR, ignore it: any added line would make the gate block that MR.
+
+### 8.4 Probation MCP server (IDE Agentic Chat, Duo CLI)
+
+`mcp/probation-server.ts` is a stdio MCP server with four read-only tools:
+- `get_trust`: score and level per zone, the points needed for the next level, and recent events;
+- `list_graves`: what was buried and exhumed;
+- `explain_gate`: runs the real `decide()` from `probation/src/gate.ts` on hypothetical `{path, added, removed}` files;
+- `policy`: zones, thresholds and scoring.
+
+1. In the top-level group, go to **Settings → GitLab Duo → Change configuration** and select **Allow external MCP tools**.
+2. The workspace config `.gitlab/duo/mcp.json` starts it with `node mcp/probation-server.ts` against `.out/mock-ledger.json`. Run `npm run demo:mock` once to create that file. It needs GitLab for VS Code 6.35.6+, the JetBrains plugin 3.14.0+, or Duo CLI 8.81.0+. Restart the IDE after you change the file. If you get `spawn node ENOENT`, put the absolute path to `node` in `command`.
+3. For the live ledger branch, add a second server to your **user** config (`~/.gitlab/duo/mcp.json`, never committed):
+   ```json
+   { "mcpServers": { "probation-live": {
+       "type": "stdio", "command": "node", "args": ["/abs/path/to/repo/mcp/probation-server.ts"],
+       "env": { "GITLAB_TOKEN": "<read_api token>", "GITLAB_PROJECT_ID": "<numeric id>" },
+       "approvedTools": true } } }
+   ```
+   `GITLAB_API_URL` defaults to `https://gitlab.com/api/v4`. `LEDGER_FILE`, if set, always wins.
+4. In Agentic Chat, ask: "Use explain_gate: what happens if Undertaker deletes app/src/legacy/fax.ts (0 added, 80 removed)?"
+
+To try it locally without an IDE, run `LEDGER_FILE=.out/mock-ledger.json npm run mcp`. It speaks JSON-RPC on stdio.

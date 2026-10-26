@@ -20,12 +20,15 @@
     "settle": "node probation/src/cli/settle.ts",
     "board": "node probation/src/cli/board.ts",
     "flow:print": "node probation/src/cli/flow-print.ts",
-    "demo:mock": "node scripts/mock-flow.ts"
+    "demo:mock": "node scripts/mock-flow.ts",
+    "mcp": "node mcp/probation-server.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "autocannon": "8.0.0",
     "picomatch": "4.0.3",
-    "yaml": "2.8.1"
+    "yaml": "2.8.1",
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.4",

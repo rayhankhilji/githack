@@ -2,6 +2,7 @@
 #   MR pipeline:    verify → secure → measure → probation:gate (decides how far an Undertaker MR goes alone)
 #   main pipeline:  verify → secure → package → measure → release (child pipeline shaped by the gate) → govern
 #   schedule:       census (find dead code in production logs) → undertaker:dig (start the flow) → board
+#   tag catalog-*:  catalog-sync (publish flows/*.yml and agents/*.yml to the GitLab AI Catalog), nothing else
 # Required CI/CD variables: see docs/RUNBOOK.md.
 
 workflow:
@@ -14,7 +15,9 @@ workflow:
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    # No tag pipelines: govern:release-notes creates a release-N tag on every release.
+    # Only catalog-* tags build (AI Catalog sync). govern:release-notes creates a release-N tag on every release;
+    # those never build.
+    - if: $CI_COMMIT_TAG =~ /^catalog-/
 
 stages: [verify, test, package, measure, gate, release, govern]
 
@@ -32,6 +35,11 @@ include:
   - template: Jobs/SAST.gitlab-ci.yml
   - template: Jobs/Secret-Detection.gitlab-ci.yml
   - template: Jobs/Dependency-Scanning.gitlab-ci.yml
+  # Syncs flows/ and agents/ to the AI Catalog on tag pipelines (catalog-sync) and validates them against the
+  # catalog schemas elsewhere (validate-items). Token and group: CATALOG_SYNC_TOKEN, CATALOG_GROUP_ID (RUNBOOK).
+  - component: $CI_SERVER_HOST/components/ai-catalog/catalog-sync@0.0.32
+    inputs:
+      group_id: $CATALOG_GROUP_ID
 
 .node:
   image: node:22-bookworm-slim
@@ -54,6 +62,9 @@ include:
 .not-schedule:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    # Tag pipelines run catalog-sync only.
+    - if: $CI_COMMIT_TAG
       when: never
     - when: on_success
 
@@ -176,6 +187,17 @@ govern:release-notes:
     tag_name: release-$CI_PIPELINE_IID
     name: Tallybook release $CI_PIPELINE_IID
     description: "$CI_COMMIT_TITLE — shipped through the Probation pipeline ($CI_PIPELINE_URL)."
+
+# ── AI Catalog (jobs from the catalog-sync component; only stage and rules are overridden here) ─────
+validate-items:
+  stage: verify
+  rules: !reference [.not-schedule, rules]
+
+catalog-sync:
+  # The component defaults to stage `deploy`, which this pipeline does not have.
+  stage: govern
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^catalog-/
 
 # ── schedule: census → dig → board ──────────────────────────────────────
 census:collect:
