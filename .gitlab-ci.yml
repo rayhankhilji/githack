@@ -1,0 +1,215 @@
+# Probation + Undertaker: the post-code lifecycle for Tallybook.
+#   MR pipeline:    verify → secure → measure → probation:gate (decides how far an Undertaker MR goes alone)
+#   main pipeline:  verify → secure → package → measure → release (child pipeline shaped by the gate) → govern
+#   schedule:       census (find dead code in production logs) → undertaker:dig (start the flow) → board
+# Required CI/CD variables: see docs/RUNBOOK.md.
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "ledger"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+stages: [verify, test, package, measure, gate, release, govern]
+
+variables:
+  GCP_REGION: us-central1
+  AR_REPOSITORY: tallybook
+  CLOUD_RUN_SERVICE: tallybook
+  SAST_EXCLUDED_PATHS: "probation/test, app/test, node_modules"
+  SECURE_LOG_LEVEL: info
+
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
+
+.node:
+  image: node:22-bookworm-slim
+  cache:
+    key:
+      files: [package-lock.json, app/package-lock.json]
+    paths: [node_modules/, app/node_modules/]
+  before_script:
+    - npm ci --no-audit --no-fund
+    - npm ci --prefix app --no-audit --no-fund
+
+.gcp:
+  image: google/cloud-sdk:slim
+  id_tokens:
+    GCP_ID_TOKEN:
+      aud: $GCP_WIF_AUDIENCE
+  before_script:
+    - source ci/gcp-auth.sh
+
+.not-schedule:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - when: on_success
+
+.main-only:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+.schedule-only:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+# ── verify ──────────────────────────────────────────────────────────────
+verify:check:
+  extends: [.node, .not-schedule]
+  stage: verify
+  script:
+    - npm run lint
+    - npm run typecheck
+    - npx vitest run --reporter=default --reporter=junit --outputFile=.out/junit.xml
+  artifacts:
+    when: always
+    reports:
+      junit: .out/junit.xml
+
+verify:replay:
+  extends: [.node, .not-schedule]
+  stage: verify
+  script:
+    # Every route that served production traffic in the census window must still exist.
+    - npm run replay
+
+# ── secure ──────────────────────────────────────────────────────────────
+# GitLab SAST, Secret Detection and Dependency Scanning run from the templates above (stage: test) and feed
+# the MR security widget and vulnerability report. secure:npm-audit also writes a plain-file report that
+# probation:gate diffs against main's baseline, so the gate never depends on template job names.
+secure:npm-audit:
+  extends: [.node, .not-schedule]
+  stage: test
+  script:
+    - node probation/src/cli/audit.ts
+  artifacts:
+    paths: [gl-npm-audit-report.json]
+    reports:
+      dependency_scanning: gl-npm-audit-report.json
+
+# ── package ─────────────────────────────────────────────────────────────
+package:image:
+  extends: [.gcp, .main-only]
+  stage: package
+  script:
+    - IMAGE="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$AR_REPOSITORY/tallybook:$CI_COMMIT_SHA"
+    - gcloud builds submit app --tag "$IMAGE" --region "$GCP_REGION" --quiet
+    - echo "Built $IMAGE"
+
+# ── measure (Software Carbon Intensity) ─────────────────────────────────
+measure:sci:
+  extends: [.node, .not-schedule]
+  stage: measure
+  script:
+    - npm run sci
+  artifacts:
+    paths: [.out/sci.json, .out/sci.md]
+
+# ── gate (merge requests only) ──────────────────────────────────────────
+probation:gate:
+  extends: .node
+  stage: gate
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - npm run gate
+  artifacts:
+    when: always
+    paths: [.out/gate.json]
+
+# ── release (main only): child pipeline shaped by the autonomy level ────
+release:plan:
+  extends: [.node, .main-only]
+  stage: release
+  script:
+    - node probation/src/cli/release-plan.ts
+  artifacts:
+    paths: [.out/release.yml]
+
+release:run:
+  extends: .main-only
+  stage: release
+  needs: [release:plan, package:image]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+  trigger:
+    include:
+      - artifact: .out/release.yml
+        job: release:plan
+    strategy: depend
+
+# ── govern ──────────────────────────────────────────────────────────────
+govern:baseline:
+  extends: [.node, .main-only]
+  stage: govern
+  needs: [release:run, secure:npm-audit]
+  script:
+    - node probation/src/cli/baseline.ts
+
+govern:release-notes:
+  extends: .main-only
+  stage: govern
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs: [release:run]
+  script:
+    - echo "Releasing $CI_COMMIT_SHORT_SHA"
+  release:
+    tag_name: release-$CI_PIPELINE_IID
+    name: Tallybook release $CI_PIPELINE_IID
+    description: "$CI_COMMIT_TITLE — shipped through the Probation pipeline ($CI_PIPELINE_URL)."
+
+# ── schedule: census → dig → board ──────────────────────────────────────
+census:collect:
+  extends: [.gcp, .schedule-only]
+  stage: verify
+  script:
+    - mkdir -p .out
+    - >
+      gcloud logging read
+      "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$CLOUD_RUN_SERVICE\" AND jsonPayload.census=1"
+      --freshness=${CENSUS_FRESHNESS:-7d} --limit=50000 --format=json > .out/census-log.json
+    - echo "$(grep -c '"census"' .out/census-log.json || true) census lines"
+  artifacts:
+    paths: [.out/census-log.json]
+
+census:file:
+  extends: [.node, .schedule-only]
+  stage: test
+  needs: [census:collect]
+  script:
+    - npm run census -- --log .out/census-log.json
+  artifacts:
+    paths: [.out/candidates.json, .out/traffic.json]
+
+undertaker:dig:
+  extends: [.node, .schedule-only]
+  stage: gate
+  needs: [census:file]
+  script:
+    - node probation/src/cli/start-flow.ts
+
+pages:
+  extends: .node
+  stage: govern
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  needs:
+    - job: release:run
+      optional: true
+    - job: undertaker:dig
+      optional: true
+  script:
+    - npm run board -- --out public/index.html
+  artifacts:
+    paths: [public]

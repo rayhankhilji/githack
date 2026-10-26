@@ -1,0 +1,58 @@
+# Probation policy: how much autonomy each agent has earned, per code zone.
+# Protected by CODEOWNERS: changing the rules of probation needs a human approval.
+# Points and thresholds are demo-accelerated (a real team would use ~10x the soak and thresholds).
+
+agents:
+  undertaker:
+    # MRs authored by the flow's service account or carrying this label are treated as Undertaker's.
+    label: undertaker
+    author_pattern: '^ai-undertaker'
+
+levels:
+  # Lowest score that grants each level. Scores start at 0.
+  assisted: 0
+  supervised: 10
+  hands_off: 30
+
+scoring:
+  survived_soak: 10
+  rolled_back: -40
+  human_rejected: -20
+  security_finding: -30
+
+# Score is earned per zone. A file belongs to the first zone whose glob matches.
+zones:
+  - name: auth
+    globs: ['app/src/auth/**']
+    forbidden: true
+  - name: probation
+    globs: ['probation/**', 'flows/**', '.gitlab-ci.yml', 'ci/**', '.gitlab/**', 'infra/**']
+    forbidden: true
+  # Tests of buried code may be deleted alongside it; they never raise or lower the level.
+  # Undertaker may not add or edit tests (that would let it weaken the safety net).
+  - name: tests
+    globs: ['app/test/**']
+    neutral: true
+  - name: legacy
+    globs: ['app/src/legacy/**']
+  - name: flags
+    globs: ['app/src/flags/**']
+  - name: deps
+    globs: ['app/package.json', 'app/package-lock.json']
+  - name: routes
+    globs: ['app/src/routes/**', 'app/src/server.ts']
+  - name: core
+    globs: ['app/src/**']
+
+soak:
+  minutes: 3
+  canary_percent: 10
+  max_5xx_rate: 0.01
+  # Synthetic checks that represent real clients the census can miss (e.g. monthly jobs).
+  synthetics: probation/synthetics.yml
+
+census:
+  window_days: 7
+  min_requests_in_window: 200
+  # Routes the census must never propose, whatever the traffic says.
+  keep: ['GET /healthz']

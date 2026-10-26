@@ -1,0 +1,25 @@
+# Coefficients for the Software Carbon Intensity calculation (Green Software Foundation SCI spec, ISO/IEC 21031:2024).
+# SCI = ((E * I) + M) per R, with R = 1,000 requests.
+# Compute and memory coefficients follow the Cloud Carbon Footprint (CCF) methodology for GCP.
+# Grid intensity: replace with the current value for your Cloud Run region from Google Cloud's
+# "Carbon free energy for Google Cloud regions" page before submitting (values below are the
+# location-based averages used at build time and must be re-checked).
+
+compute:
+  # CCF GCP average min/max watts per vCPU. A busy CPU-second is billed at max watts (conservative).
+  min_watts_per_vcpu: 0.71
+  max_watts_per_vcpu: 4.26
+memory:
+  kwh_per_gb_hour: 0.000392
+network:
+  kwh_per_gb: 0.001
+pue: 1.1
+grid:
+  region: us-central1
+  grams_co2e_per_kwh: 413
+embodied:
+  # Server embodied emissions amortised per vCPU-hour: 1,200 kgCO2e over 4 years, 48 vCPUs.
+  grams_per_vcpu_hour: 0.713
+workload:
+  # Cloud Run scales to zero at this traffic level: assume one cold start (one image pull) per 1k requests.
+  cold_starts_per_1k_requests: 1

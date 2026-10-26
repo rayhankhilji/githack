@@ -1,0 +1,9 @@
+{
+  "GET /": 4120,
+  "GET /api/invoices": 2875,
+  "GET /api/invoices/:id": 911,
+  "POST /api/invoices": 64,
+  "POST /api/invoices/:id/pay": 41,
+  "GET /api/invoices/:id/pdf": 17,
+  "GET /healthz": 2016
+}

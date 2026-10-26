@@ -1,0 +1,38 @@
+{
+  "name": "probation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "setup": "npm ci && npm ci --prefix app",
+    "dev": "node app/src/index.ts",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "replay": "node probation/src/cli/replay.ts",
+    "census": "node probation/src/cli/census.ts",
+    "gate": "node probation/src/cli/gate.ts",
+    "sci": "node probation/src/cli/sci.ts",
+    "settle": "node probation/src/cli/settle.ts",
+    "board": "node probation/src/cli/board.ts",
+    "flow:print": "node probation/src/cli/flow-print.ts",
+    "demo:mock": "node scripts/mock-flow.ts"
+  },
+  "dependencies": {
+    "autocannon": "8.0.0",
+    "picomatch": "4.0.3",
+    "yaml": "2.8.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.4",
+    "@types/autocannon": "7.12.7",
+    "@types/node": "22.18.6",
+    "@types/picomatch": "4.0.2",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}

@@ -1,0 +1,13 @@
+# Known clients with long periods: the census window can miss them, the soak cannot.
+# Each check is hit against the canary revision during the soak. A non-2xx means the deletion broke a real client.
+checks:
+  - name: dashboard
+    method: GET
+    path: /
+  - name: invoice-api
+    method: GET
+    path: /api/invoices
+  - name: bookkeeping-partner-monthly-export
+    method: GET
+    path: /api/v1/export.csv
+    note: Called on the 1st of each month by the bookkeeping partner. Invisible to a 7-day census.

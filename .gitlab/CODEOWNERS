@@ -1,0 +1,11 @@
+# The rules of probation are human-owned. An agent can never approve changes to its own leash.
+[Probation]
+/probation/policy.yml @rayhankhilji
+/probation/synthetics.yml @rayhankhilji
+/flows/ @rayhankhilji
+/.gitlab-ci.yml @rayhankhilji
+/ci/ @rayhankhilji
+/.gitlab/ @rayhankhilji
+
+[Auth]
+/app/src/auth/ @rayhankhilji
