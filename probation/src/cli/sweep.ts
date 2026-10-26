@@ -1,7 +1,7 @@
 // sweep — scheduled: score human_rejected once for every Undertaker MR closed without merge.
 import { label } from '../gate.ts';
 import { applyEvent, type Ledger, type LedgerEvent, levelChanges } from '../ledger.ts';
-import { diffStats } from '../mr.ts';
+import { candidateIssue, diffStats } from '../mr.ts';
 import { loadPolicy } from '../policy.ts';
 import { rejectionNote, rejectionsToScore, zonesFromLabels, zonesFromPaths } from '../sweep.ts';
 import { env, gitlab, ledgerStore, main } from './common.ts';
@@ -21,7 +21,7 @@ main(async () => {
 
   let ledger = before;
   const written: LedgerEvent[] = [];
-  const scored: { iid: number; zones: string[]; events: LedgerEvent[] }[] = [];
+  const scored: { iid: number; zones: string[]; events: LedgerEvent[]; issue?: number }[] = [];
   for (const mr of pending) {
     const zones =
       zonesFromLabels(mr.labels) ??
@@ -42,7 +42,7 @@ main(async () => {
     });
     ledger = result.ledger;
     written.push(...result.written);
-    scored.push({ iid: mr.iid, zones, events: result.written });
+    scored.push({ iid: mr.iid, zones, events: result.written, issue: candidateIssue(mr.description ?? '') });
   }
   if (written.length === 0) return;
   // Save before any notes, so a failed note never leads to double-scoring on the next run.
@@ -54,7 +54,14 @@ main(async () => {
 
   for (const e of written)
     console.log(`!${e.ref.mr} ${e.zone}: ${e.points} → ${e.scoreAfter} (${label(e.levelAfter)})`);
-  for (const s of scored) await gl.noteMr(s.iid, rejectionNote(s.zones, policy.scoring.human_rejected));
+  for (const s of scored) {
+    await gl.noteMr(s.iid, rejectionNote(s.zones, policy.scoring.human_rejected));
+    // A human said no to this grave: release it from in-progress so it is neither stuck nor dug again.
+    if (s.issue) {
+      await gl.updateIssue(s.issue, { add_labels: 'undertaker::do-not-bury' });
+      await gl.noteIssue(s.issue, `⚖️ A human closed !${s.iid} without merging. Marked do-not-bury.`);
+    }
+  }
   for (const change of levelChanges(written)) {
     await gl.createIssue({
       title: `⬇️ Demotion: ${agentName} is now ${label(change.levelAfter)} in zone ${change.zone}`,

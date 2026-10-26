@@ -129,7 +129,7 @@ Optional, about 20 min in all. Each one adds a Duo Agent Platform feature to the
 `.gitlab-ci.yml` includes `components/ai-catalog/catalog-sync@0.0.32`. A tag named `catalog-*` runs a pipeline with **only** the `catalog-sync` job: it validates `flows/*.yml` and `agents/*.yml`, creates or updates them in the AI Catalog, enables them in the group and this project (flows get the Mention, Assign and Assign reviewer triggers), and commits `.ai-catalog-mapping.json` to `main` with `[skip ci]`. Other tags (`release-N`) never build. On MR and `main` pipelines the component's `validate-items` job checks the same files against the catalog schemas.
 
 1. **Settings → CI/CD → Variables:**
-   - `CATALOG_SYNC_TOKEN`: a personal (or group) access token, scope `api`, from a **Maintainer of the top-level group** (a project token can create items but cannot enable them). Masked. If you mark it Protected, also protect the tags: **Settings → Repository → Protected tags → `catalog-*`**.
+   - `CATALOG_SYNC_TOKEN`: a personal (or group) access token, scope `api`, from a **Maintainer of the top-level group** (a project token can create items but cannot enable them). Masked **and Protected** (required: unprotected, it would reach every MR pipeline, including the agent's). Then protect the tags: **Settings → Repository → Protected tags → `catalog-*`**, so only protected `catalog-*` tag pipelines receive it.
    - `CATALOG_GROUP_ID`: the numeric ID of the top-level group (group overview page).
 2. Push a tag:
    ```bash

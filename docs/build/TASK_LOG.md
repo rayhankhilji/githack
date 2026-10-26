@@ -78,6 +78,22 @@
 - **Tests:** 56 passed; docs validator 0 errors.
 - **Next:** P0.T8 (Rayhan).
 
+### 2026-10-27 — Session 3 (build swarm, wave 3)
+- **Done:**
+  - WS1: in-memory GitLab fake (`probation/sim`) and an e2e of the real CLIs across the 5-act story. It found 4 bugs: census `traffic.json` on first run, scoped lifecycle labels, merge sha in merged-results pipelines, Retry-After.
+  - WS2: Probation Clerk Duo Chat agent, AI Catalog sync on `catalog-*` tags, stdio MCP server, RUNBOOK §8 triggers.
+  - WS3: board sparkline, next-promotion, nine-stage strip and meta; 5 video title cards; board screenshots.
+  - WS4: architecture and stages diagrams, `docs/STAGES.md`, README and SUBMISSION copy.
+  - WS5 review fixed:
+    - the catalog token exposed to MR pipelines;
+    - candidate issues stuck after a human rejection (now do-not-bury);
+    - the MCP server answering from a missing ledger;
+    - issue pagination;
+    - Retry-After cap;
+    - zero-baseline sparkline.
+- **Tests:** 81 passed; docs validator 0 errors.
+- **Next:** P0.T8 (Rayhan): push to GitLab, then RUNBOOK §2–5.
+
 ## Completed Phases
 
 None yet.

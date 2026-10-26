@@ -192,6 +192,9 @@ govern:release-notes:
 validate-items:
   stage: verify
   rules: !reference [.not-schedule, rules]
+  variables:
+    # Validation needs no token; never expose the group-Maintainer sync token to MR pipelines.
+    GITLAB_TOKEN: ""
 
 catalog-sync:
   # The component defaults to stage `deploy`, which this pipeline does not have.

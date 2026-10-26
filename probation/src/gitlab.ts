@@ -63,7 +63,9 @@ export class GitLab {
       if ((res.status === 429 || res.status >= 500) && attempt < 4) {
         // GitLab's rate limiter says how long to wait (Retry-After, seconds); otherwise back off 2, 4, 8 s.
         const retryAfter = Number(res.headers.get('retry-after') ?? Number.NaN);
-        await new Promise((r) => setTimeout(r, retryAfter >= 0 ? retryAfter * 1000 : 1000 * 2 ** attempt));
+        await new Promise((r) =>
+          setTimeout(r, retryAfter >= 0 ? Math.min(retryAfter, 60) * 1000 : 1000 * 2 ** attempt),
+        );
         continue;
       }
       throw new Error(`GitLab ${method} ${path} → ${res.status}: ${(await res.text()).slice(0, 500)}`);
@@ -114,8 +116,15 @@ export class GitLab {
     return this.call<{ id: string }>('POST', `/projects/:id/repository/commits/${sha}/revert`, { branch });
   }
 
-  listIssues(query: string) {
-    return this.call<Issue[]>('GET', `/projects/:id/issues?${query}`);
+  // Follows pages (per_page from the query, default 20) so dedupe and do-not-bury see every issue.
+  async listIssues(query: string): Promise<Issue[]> {
+    const perPage = Number(/per_page=(\d+)/.exec(query)?.[1] ?? 20);
+    const all: Issue[] = [];
+    for (let page = 1; ; page++) {
+      const batch = await this.call<Issue[]>('GET', `/projects/:id/issues?${query}&page=${page}`);
+      all.push(...batch);
+      if (batch.length < perPage) return all;
+    }
   }
 
   createIssue(body: { title: string; description: string; labels: string }) {

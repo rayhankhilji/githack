@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
 import { GitLab } from '../probation/src/gitlab.ts';
 import type { Ledger } from '../probation/src/ledger.ts';
 import { loadPolicy, type Policy } from '../probation/src/policy.ts';
@@ -7,7 +8,16 @@ import { FileLedgerStore, GitLabLedgerStore, type LedgerStore } from '../probati
 // Where the MCP server reads policy and ledger from. LEDGER_FILE wins (offline, tests, `npm run demo:mock`);
 // otherwise the `ledger` branch through the GitLab API, read-only.
 export function ledgerStoreFromEnv(env: NodeJS.ProcessEnv = process.env): LedgerStore {
-  if (env.LEDGER_FILE) return new FileLedgerStore(resolve(env.LEDGER_FILE));
+  if (env.LEDGER_FILE) {
+    // Relative paths are relative to the repo root, not to whatever cwd the IDE launched us from.
+    const path = isAbsolute(env.LEDGER_FILE)
+      ? env.LEDGER_FILE
+      : resolve(import.meta.dirname, '..', env.LEDGER_FILE);
+    // A missing file would read as an empty ledger and every answer would be confidently wrong.
+    if (!existsSync(path))
+      throw new Error(`LEDGER_FILE ${path} does not exist (run \`npm run demo:mock\` for a local one)`);
+    return new FileLedgerStore(path);
+  }
   const token = env.GITLAB_TOKEN ?? env.GITLAB_PROBATION_TOKEN;
   const projectId = env.GITLAB_PROJECT_ID ?? env.CI_PROJECT_ID;
   if (!token || !projectId) {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { GitLab } from '../src/gitlab.ts';
+import { ledgerStoreFromEnv } from '../../mcp/source.ts';
+import { sciSparkline } from '../src/board.ts';
+import { GitLab } from '../src/gitlab.ts';
 import { emptyLedger } from '../src/ledger.ts';
 import { candidateIssue, countLines, diffStats } from '../src/mr.ts';
 import { GitLabLedgerStore } from '../src/store.ts';
@@ -39,5 +41,34 @@ describe('review regressions', () => {
   it('ledger store surfaces load errors instead of returning an empty ledger', async () => {
     const fake = { getFile: async () => Promise.reject(new Error('GitLab GET → 401')) } as unknown as GitLab;
     await expect(new GitLabLedgerStore(fake, 'main').load()).rejects.toThrow('401');
+  });
+});
+
+describe('wave-3 review regressions', () => {
+  it('listIssues follows pages until a short page', async () => {
+    const calls: string[] = [];
+    const fetcher = (async (url: string) => {
+      calls.push(url);
+      const page = Number(/page=(\d+)$/.exec(url)?.[1]);
+      const body = page === 1 ? [{ iid: 1 }, { iid: 2 }] : [{ iid: 3 }];
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+    const gl = new GitLab({ apiUrl: 'http://x/api/v4', projectId: '1', token: 't' }, fetcher);
+    const issues = await gl.listIssues('labels=a&per_page=2');
+    expect(issues.map((i) => i.iid)).toEqual([1, 2, 3]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('sparkline shows no % change from a zero baseline', () => {
+    const svg = sciSparkline([
+      { at: '2026-10-27T00:00:00Z', sha: 'a', gramsPer1kRequests: 0 },
+      { at: '2026-10-27T01:00:00Z', sha: 'b', gramsPer1kRequests: 0.01 },
+    ]);
+    expect(svg).not.toContain('%');
+    expect(svg).not.toContain('NaN');
+  });
+
+  it('MCP refuses a missing LEDGER_FILE instead of answering from an empty ledger', () => {
+    expect(() => ledgerStoreFromEnv({ LEDGER_FILE: 'does/not/exist.json' })).toThrow('does not exist');
   });
 });

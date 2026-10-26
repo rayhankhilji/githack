@@ -57,18 +57,19 @@ export function sciSparkline(history: SciPoint[]): string {
   const y = (v: number) => (hi === lo ? h / 2 : h - p - ((v - lo) / (hi - lo)) * (h - 2 * p));
   const first = vals[0];
   const last = vals[vals.length - 1];
-  const delta = first ? ((last - first) / first) * 100 : 0;
+  // No meaningful % change from a zero baseline; treat it as unknown rather than 0%.
+  const delta = first ? ((last - first) / first) * 100 : undefined;
   const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   const dots = history
     .map(
       (s, i) =>
-        `<path d="M${x(i).toFixed(1)} ${y(s.gramsPer1kRequests).toFixed(1)}h0" class="${i === history.length - 1 ? `spark-last ${delta <= 0 ? 'down' : 'up'}` : 'spark-dot'}"><title>${esc(`${s.at.slice(0, 16).replace('T', ' ')} · ${s.sha.slice(0, 8)} · ${s.gramsPer1kRequests.toFixed(4)} g`)}</title></path>`,
+        `<path d="M${x(i).toFixed(1)} ${y(s.gramsPer1kRequests).toFixed(1)}h0" class="${i === history.length - 1 ? `spark-last ${delta === undefined ? '' : delta <= 0 ? 'down' : 'up'}` : 'spark-dot'}"><title>${esc(`${s.at.slice(0, 16).replace('T', ' ')} · ${s.sha.slice(0, 8)} · ${s.gramsPer1kRequests.toFixed(4)} g`)}</title></path>`,
     )
     .join('');
   const text =
     history.length === 1
       ? `1 measurement · ${first.toFixed(4)} g`
-      : `${first.toFixed(4)} → ${last.toFixed(4)} g · ${pct(delta)}`;
+      : `${first.toFixed(4)} → ${last.toFixed(4)} g${delta === undefined ? '' : ` · ${pct(delta)}`}`;
   return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${esc(`SCI per 1k requests over ${history.length} measurements: ${text}`)}"><polyline points="${pts}" class="spark-line"/>${dots}</svg><div class="spark-label">${esc(text)}</div>`;
 }
 
