@@ -25,7 +25,7 @@ The deadline is **2026-10-27 13:00 UTC**. Each phase ends with something deploya
 - [x] P0.T6 — `.gitlab-ci.yml` covering verify, secure, package, measure, gate, release (child), govern and schedule · verify: GitLab pipeline editor "Validate"
 - [x] P0.T7 — `infra/gcp-bootstrap.sh`, `ci/deploy.sh`, `ci/gcp-auth.sh`, `app/Dockerfile` · verify: `bash -n` on the scripts
 - [ ] P0.T8 — Push to the GitLab hackathon project, make it public, and confirm LICENSE shows in About · refs: RUNBOOK §1 · verify: project page shows "MIT License"
-- [ ] P0.T9 — Run `infra/gcp-bootstrap.sh`; add the CI variables (ARCHITECTURE §12); create the project access token · refs: RUNBOOK §2 · verify: variables listed in Settings → CI/CD
+- [ ] P0.T9 — Run `npm run gitlab:setup` (labels, schedule, protected tag, MR settings) and `infra/gcp-bootstrap.sh`; create the tokens and add the CI variables (ARCHITECTURE §12) · refs: RUNBOOK §0–§2 · verify: `npm run doctor` exits 0
 - [ ] P0.T10 — First main pipeline green: image built, staging → canary → soak → promote; Tallybook URL live · refs: F-05 · verify: `curl $URL/healthz` returns `{ok:true}`
 
 **Exit criteria:**

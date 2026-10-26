@@ -56,6 +56,11 @@ node probation/src/cli/release-plan.ts && cat .out/release.yml
 | Board | `probation/test/board.test.ts` | F-07 |
 | MR helpers | `probation/test/mr.test.ts` | F-02 |
 | Tallybook | `app/test/server.test.ts` | F-08 |
+| CLI end-to-end story | `probation/test/e2e/story.test.ts` (real CLIs against `probation/sim/gitlab-fake.ts`) | F-01–F-05, F-09, F-10 |
+| Setup + doctor | `probation/test/e2e/setup.test.ts` | P0.T9 |
+| Canary signal, stale reset | `probation/test/soak.test.ts`, `sweep.test.ts` | F-05, F-10 |
+| Replay | `probation/test/replay.test.ts` | F-07 |
+| MCP server | `probation/test/mcp.test.ts` | Clerk / MCP |
 
 ## 6. Acceptance Test Matrix
 
@@ -82,7 +87,7 @@ node probation/src/cli/release-plan.ts && cat .out/release.yml
 
 ## 7. Expected Results
 
-- `npm run check`: Biome 0 errors, tsc 0 errors, Vitest **81 passed**.
+- `npm run check`: Biome 0 errors, tsc 0 errors, Vitest **112 passed**.
 - `npm run demo:mock`: five acts ending with the lines below, and `.out/board.html` written.
   - `legacy -40 → 0 · Hands-off → Assisted` (act 4);
   - `Assisted → Supervised` (act 5).

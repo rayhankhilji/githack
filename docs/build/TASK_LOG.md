@@ -94,6 +94,15 @@
 - **Tests:** 81 passed; docs validator 0 errors.
 - **Next:** P0.T8 (Rayhan): push to GitLab, then RUNBOOK §2–5.
 
+### 2026-10-27 — Session 4 (build swarm, wave 4)
+- **Done:**
+  - WS6: `npm run gitlab:setup` (labels, schedule, protected tag, MR settings) and `npm run doctor` (read-only preflight), with 7 e2e tests against the fake.
+  - WS7: canary error-rate signal (`soak:canary-logs` → `soak:canary-signal`: 5xx rate and deleted-route 404s versus the previous revision) and stale in-progress reset in the sweep.
+  - WS8: ledger replay page (`replay.html` next to the board) and the recorded clip `docs/media/replay.webm`/`.mp4` with key frames.
+  - Forbidden zone now includes `agents/**` and `mcp/**` (Rayhan approved).
+- **Tests:** 112 passed; docs validator 0 errors.
+- **Next:** Rayhan runs `npm run gitlab:setup` → `npm run doctor` → RUNBOOK §2–5.
+
 ## Completed Phases
 
 None yet.
