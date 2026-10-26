@@ -21,6 +21,8 @@
     "board": "node probation/src/cli/board.ts",
     "flow:print": "node probation/src/cli/flow-print.ts",
     "demo:mock": "node scripts/mock-flow.ts",
+    "gitlab:setup": "node scripts/gitlab-setup.ts",
+    "doctor": "node scripts/doctor.ts",
     "mcp": "node mcp/probation-server.ts"
   },
   "dependencies": {

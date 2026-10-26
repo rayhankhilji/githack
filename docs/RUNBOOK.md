@@ -2,6 +2,41 @@
 
 These are the steps only you can do, because they need your GitLab and GCP accounts. Budget about 1.5 h of setup, then the demo runs. The deadline is **2026-10-27 13:00 UTC**; aim to submit by 12:00.
 
+## 0. Shortcut: two commands
+
+After you push the repo (§1.1–§1.2), two scripts do most of §1–§2 and then check everything before you spend GitLab Credits. Use your own personal access token (scope `api`, Maintainer or Owner on the project):
+
+```bash
+GITLAB_TOKEN=glpat-… GITLAB_PROJECT=<group>/<subgroup>/<project> npm run gitlab:setup
+GITLAB_TOKEN=glpat-… GITLAB_PROJECT=<group>/<subgroup>/<project> npm run doctor
+```
+
+- `gitlab:setup` is safe to re-run. Each line reads ✅ created, ✅ exists or ❌ with a fix. It does this:
+  - creates the labels (`undertaker::*`, `probation::*`, `coroner::objection`, one `zone::*` per zone in `probation/policy.yml`, and `kind::*`);
+  - creates the pipeline schedule "Probation census + dig + sweep" on the default branch. It uses `CENSUS_CRON` (default `17 2 * * *` UTC) and the schedule variable `CENSUS_FRESHNESS` (default `7d`);
+  - protects the `catalog-*` tags (Maintainers);
+  - turns on "Pipelines must succeed" and "Delete source branch". Auto-merge needs no setting on GitLab.com.
+
+  It only *reads* CI/CD variables, and lists the ones that are missing. It never creates them or prints their values. If a schedule already exists, it keeps your cron and `CENSUS_FRESHNESS`.
+- `doctor` is read-only. It prints ✅/⚠️/❌ with a one-line fix each, and exits 1 on any ❌. It checks:
+  - your token's scopes;
+  - public visibility and the detected MIT license;
+  - the CI/CD variables and their masked/protected flags (as in §2);
+  - that the two tokens stored in the variables are valid;
+  - the labels, the schedule and the `catalog-*` protected tag;
+  - the `ledger` branch (⚠️ until the first CI run);
+  - the Pages site;
+  - that `UNDERTAKER_CONSUMER_ID` matches the enabled Undertaker flow (§3.4).
+
+  Set `TALLYBOOK_URL=https://…` to also check `/healthz`. Run `doctor` again after §3, and before every ▶ in §5.
+
+These steps stay manual, because they need your judgement or your secrets:
+- §1.1–§1.4 and §1.6–§1.7: the project, visibility, branch protection and CODEOWNERS;
+- §2: create the tokens and set every variable's value;
+- §2.1: GCP bootstrap;
+- §3: create and enable the Undertaker flow, then set `UNDERTAKER_CONSUMER_ID` (the doctor prints the right number);
+- the optional approval rule in §1.5.
+
 ## 1. GitLab project (about 10 min)
 
 1. Use the project GitLab provisioned for you in the hackathon subgroup. Or create one there; it must be inside the group to get Duo Agent Platform.
@@ -11,16 +46,16 @@ These are the steps only you can do, because they need your GitLab and GCP accou
    ```
 3. Make it public: **Settings → General → Visibility → Public**. Check that "MIT License" shows in the project's About panel.
 4. **Settings → Repository → Protected branches:** `main` allows Maintainers to merge, and nobody to push except Maintainers.
-5. **Settings → Merge requests:**
-   - turn on "Pipelines must succeed";
-   - allow auto-merge;
+5. **Settings → Merge requests** (`npm run gitlab:setup` does the first two):
+   - turn on "Pipelines must succeed" and "Delete source branch" by default;
+   - auto-merge is on by default on GitLab.com, so there is no setting to change;
    - optionally, under Merge request approvals, require 1 approval, so Assisted MRs need a human.
 6. Edit `.gitlab/CODEOWNERS` and replace `@rayhankhilji` with your GitLab username if it differs.
 7. If the group has push rules, make sure branch names `undertaker/*` are allowed, and the flow service account's commit email too.
 
 ## 2. Tokens and CI/CD variables (about 15 min)
 
-Go to **Settings → CI/CD → Variables**. Mask every token.
+Go to **Settings → CI/CD → Variables**. Mask every token. `npm run gitlab:setup` lists the missing ones, and `npm run doctor` checks the flags below.
 
 | Variable | How to get it | Protected? |
 |---|---|---|
@@ -84,10 +119,7 @@ Delete `k.json` afterwards.
 
 ## 5. The demo runs (Phase 2)
 
-1. Go to **Build → Pipeline schedules → New**:
-   - cron `17 2 * * *`;
-   - target `main`;
-   - variable `CENSUS_FRESHNESS` = `6h`.
+1. `npm run gitlab:setup` already created the schedule. For the demo, edit it in **Build → Pipeline schedules** and set its variable `CENSUS_FRESHNESS` to `6h`. (Or create it by hand: cron `17 2 * * *`, target `main`, variable `CENSUS_FRESHNESS` = `6h`.) Run `npm run doctor` first.
 2. Click ▶ to run it now. This runs census → 🪦 issues → `undertaker:dig`, which starts Undertaker on the first candidate.
 3. **Steer the order for the story.** Dig picks dependency → export → flag → route. For the legacy arc, close or label `undertaker::in-progress` the candidates you don't want yet, then press ▶ again for each act.
 
@@ -129,7 +161,7 @@ Optional, about 20 min in all. Each one adds a Duo Agent Platform feature to the
 `.gitlab-ci.yml` includes `components/ai-catalog/catalog-sync@0.0.32`. A tag named `catalog-*` runs a pipeline with **only** the `catalog-sync` job: it validates `flows/*.yml` and `agents/*.yml`, creates or updates them in the AI Catalog, enables them in the group and this project (flows get the Mention, Assign and Assign reviewer triggers), and commits `.ai-catalog-mapping.json` to `main` with `[skip ci]`. Other tags (`release-N`) never build. On MR and `main` pipelines the component's `validate-items` job checks the same files against the catalog schemas.
 
 1. **Settings → CI/CD → Variables:**
-   - `CATALOG_SYNC_TOKEN`: a personal (or group) access token, scope `api`, from a **Maintainer of the top-level group** (a project token can create items but cannot enable them). Masked **and Protected** (required: unprotected, it would reach every MR pipeline, including the agent's). Then protect the tags: **Settings → Repository → Protected tags → `catalog-*`**, so only protected `catalog-*` tag pipelines receive it.
+   - `CATALOG_SYNC_TOKEN`: a personal (or group) access token, scope `api`, from a **Maintainer of the top-level group** (a project token can create items but cannot enable them). Masked **and Protected** (required: unprotected, it would reach every MR pipeline, including the agent's). Then protect the tags: **Settings → Repository → Protected tags → `catalog-*`** (`npm run gitlab:setup` does this), so only protected `catalog-*` tag pipelines receive it.
    - `CATALOG_GROUP_ID`: the numeric ID of the top-level group (group overview page).
 2. Push a tag:
    ```bash

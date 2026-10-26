@@ -240,7 +240,7 @@ flowchart LR
 
 | Name | Required | Example (fake) | Used by | Secret |
 |---|---|---|---|---|
-| `GITLAB_PROBATION_TOKEN` | yes | `glpat-EXAMPLEtoken1` | all Probation CLIs in CI | yes (masked, protected) |
+| `GITLAB_PROBATION_TOKEN` | yes | `glpat-EXAMPLEtoken1` | all Probation CLIs in CI | yes (masked, **not** protected: MR pipelines on `undertaker/*` branches need it) |
 | `DUO_FLOW_TRIGGER_TOKEN` | yes for dig | `glpat-EXAMPLEtoken2` | `start-flow.ts` | yes |
 | `UNDERTAKER_CONSUMER_ID` | yes for dig | `4211` | `start-flow.ts` | no |
 | `GCP_PROJECT_ID` | yes | `tallybook-demo` | gcp jobs, `deploy.sh` | no |

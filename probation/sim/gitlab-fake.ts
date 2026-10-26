@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { MrDiff } from '../src/gitlab.ts';
+import type { CiVariable, Label, MrDiff, PipelineSchedule, ProtectedTag, TokenInfo } from '../src/gitlab.ts';
 
 export interface FakeIssue {
   id: number;
@@ -47,8 +47,28 @@ export interface FakeCommit {
   actions: { action: string; file_path: string }[];
 }
 
+/** Project settings and setup objects that scripts/gitlab-setup.ts and scripts/doctor.ts touch. */
+export interface FakeProject {
+  path: string;
+  visibility: 'private' | 'internal' | 'public';
+  /** license key GitLab detected (e.g. 'mit'), or null. */
+  license: string | null;
+  only_allow_merge_if_pipeline_succeeds: boolean;
+  remove_source_branch_after_merge: boolean;
+  labels: Label[];
+  schedules: PipelineSchedule[];
+  protectedTags: ProtectedTag[];
+  variables: CiVariable[];
+  /** Personal/project access tokens' self-information, by token value. */
+  tokens: Map<string, TokenInfo>;
+  /** AI Catalog flow consumers enabled on this project (GraphQL aiCatalogConfiguredItems). */
+  consumers: { id: number; enabled: boolean; name: string }[];
+  pagesUrl: string | null;
+}
+
 export interface FakeState {
   projectId: string;
+  project: FakeProject;
   defaultBranch: string;
   baseUrl: string;
   projectToken: string;
@@ -341,10 +361,21 @@ function route(
       },
     ];
   }
-  if (seg[0] !== 'projects' || seg.length < 3) throw notFound;
-  if (seg[1] !== state.projectId) throw new HttpError(404, { message: '404 Project Not Found' });
+  if (seg.join('/') === 'api/graphql' && method === 'POST') return [200, graphql(state, body)];
+  if (seg.join('/') === 'personal_access_tokens/self' && method === 'GET') {
+    const info = state.project.tokens.get(token);
+    if (!info) throw new HttpError(401, { message: '401 Unauthorized' });
+    return [200, info];
+  }
+  if (seg[0] !== 'projects' || seg.length < 2) throw notFound;
+  // :id is the numeric id or the URL-encoded path (one segment, decoded).
+  if (seg[1] !== state.projectId && seg[1] !== state.project.path)
+    throw new HttpError(404, { message: '404 Project Not Found' });
+  if (seg.length === 2) return projectRoute(state, method, query, body);
   const [a, b, c, d] = seg.slice(2);
   const key = `${method} ${[a, b && '*', c, d && '*'].filter(Boolean).join('/')}`;
+  const setup = setupRoute(state, key, a, b, c, d, body, query, res);
+  if (setup) return setup;
 
   if (a === 'merge_requests') {
     if (key === 'GET merge_requests') {
@@ -480,6 +511,200 @@ function route(
   throw notFound;
 }
 
+// ---------- Project setup endpoints (labels, schedules, protected tags, variables, pages, GraphQL) ----------
+
+function projectJson(state: FakeState, withLicense: boolean) {
+  const p = state.project;
+  const license = p.license
+    ? { key: p.license, name: p.license === 'mit' ? 'MIT License' : p.license.toUpperCase(), nickname: null }
+    : null;
+  return {
+    id: Number(state.projectId),
+    name: p.path.split('/').pop(),
+    path_with_namespace: p.path,
+    web_url: `${state.baseUrl}/${p.path}`,
+    default_branch: state.defaultBranch,
+    visibility: p.visibility,
+    only_allow_merge_if_pipeline_succeeds: p.only_allow_merge_if_pipeline_succeeds,
+    remove_source_branch_after_merge: p.remove_source_branch_after_merge,
+    ...(withLicense ? { license } : {}),
+  };
+}
+
+function projectRoute(
+  state: FakeState,
+  method: string,
+  query: URLSearchParams,
+  body: Record<string, unknown>,
+): [number, unknown] {
+  if (method === 'GET') return [200, projectJson(state, query.get('license') === 'true')];
+  if (method === 'PUT') {
+    const p = state.project;
+    for (const k of ['only_allow_merge_if_pipeline_succeeds', 'remove_source_branch_after_merge'] as const)
+      if (body[k] !== undefined) p[k] = body[k] === true || body[k] === 'true';
+    if (typeof body.visibility === 'string') p.visibility = body.visibility as FakeProject['visibility'];
+    return [200, projectJson(state, false)];
+  }
+  throw new HttpError(405, { message: '405 Method Not Allowed' });
+}
+
+const COLOR = /^#[0-9a-fA-F]{6}$/;
+
+function setupRoute(
+  state: FakeState,
+  key: string,
+  a: string,
+  b: string | undefined,
+  c: string | undefined,
+  d: string | undefined,
+  body: Record<string, unknown>,
+  query: URLSearchParams,
+  res: ServerResponse,
+): [number, unknown] | undefined {
+  const p = state.project;
+  if (key === 'GET labels') return [200, paginate(p.labels, query, res)];
+  if (key === 'POST labels') {
+    if (!body.name) throw new HttpError(400, { error: 'name is missing' });
+    if (!COLOR.test(String(body.color ?? '')))
+      throw new HttpError(400, { message: { color: ['must be a valid color code'] } });
+    if (p.labels.some((l) => l.name === body.name))
+      throw new HttpError(409, { message: 'Label already exists' });
+    const label: Label = {
+      id: 300 + p.labels.length + 1,
+      name: String(body.name),
+      color: String(body.color),
+      description: body.description === undefined ? null : String(body.description),
+      is_project_label: true,
+    };
+    p.labels.push(label);
+    return [201, label];
+  }
+  if (key === 'PUT labels/*') {
+    const label = p.labels.find((l) => l.name === b || String(l.id) === b);
+    if (!label) throw new HttpError(404, { message: '404 Label Not Found' });
+    if (body.color !== undefined) {
+      if (!COLOR.test(String(body.color)))
+        throw new HttpError(400, { message: { color: ['must be a valid color code'] } });
+      label.color = String(body.color);
+    }
+    if (body.description !== undefined) label.description = String(body.description);
+    return [200, label];
+  }
+
+  if (key === 'GET pipeline_schedules')
+    return [
+      200,
+      paginate(
+        p.schedules.map(({ variables: _, ...s }) => s),
+        query,
+        res,
+      ),
+    ];
+  if (key === 'POST pipeline_schedules') {
+    for (const k of ['description', 'ref', 'cron'])
+      if (!body[k]) throw new HttpError(400, { error: `${k} is missing` });
+    const ref = String(body.ref);
+    if (!state.branches.has(ref.replace(/^refs\/heads\//, '')))
+      throw new HttpError(400, { message: { ref: ['is ambiguous or does not exist'] } });
+    const schedule: PipelineSchedule = {
+      id: 10 + p.schedules.length + 1,
+      description: String(body.description),
+      ref: ref.startsWith('refs/') ? ref : `refs/heads/${ref}`,
+      cron: String(body.cron),
+      cron_timezone: String(body.cron_timezone ?? 'UTC'),
+      active: body.active === undefined ? true : body.active === true || body.active === 'true',
+      variables: [],
+    };
+    p.schedules.push(schedule);
+    const { variables: _, ...out } = schedule;
+    return [201, out];
+  }
+  if (a === 'pipeline_schedules' && b) {
+    const schedule = p.schedules.find((s) => s.id === Number(b));
+    if (!schedule) throw new HttpError(404, { message: '404 Pipeline Schedule Not Found' });
+    if (key === 'GET pipeline_schedules/*') return [200, schedule];
+    if (key === 'POST pipeline_schedules/*/variables') {
+      if (!body.key || body.value === undefined) throw new HttpError(400, { error: 'key is missing' });
+      if (schedule.variables?.some((v) => v.key === body.key))
+        throw new HttpError(400, { message: { key: ['(CENSUS_FRESHNESS) has already been taken'] } });
+      const variable = { key: String(body.key), value: String(body.value), variable_type: 'env_var' };
+      schedule.variables = [...(schedule.variables ?? []), variable];
+      return [201, variable];
+    }
+  }
+
+  if (key === 'GET protected_tags') return [200, paginate(p.protectedTags, query, res)];
+  if (key === 'GET protected_tags/*') {
+    const tag = p.protectedTags.find((t) => t.name === b);
+    if (!tag) throw new HttpError(404, { message: '404 Not found' });
+    return [200, tag];
+  }
+  if (key === 'POST protected_tags') {
+    if (!body.name) throw new HttpError(400, { error: 'name is missing' });
+    if (p.protectedTags.some((t) => t.name === body.name))
+      throw new HttpError(409, { message: 'Protected tag already exists' });
+    const level = Number(body.create_access_level ?? 40);
+    const tag: ProtectedTag = {
+      name: String(body.name),
+      create_access_levels: [
+        { access_level: level, access_level_description: level === 40 ? 'Maintainers' : String(level) },
+      ],
+    };
+    p.protectedTags.push(tag);
+    return [201, tag];
+  }
+
+  if (key === 'GET variables')
+    return [
+      200,
+      paginate(
+        p.variables.map((v) => ({ ...v, value: v.hidden ? null : v.value })),
+        query,
+        res,
+      ),
+    ];
+  if (key === 'GET variables/*') {
+    const v = p.variables.find((x) => x.key === b);
+    if (!v) throw new HttpError(404, { message: '404 Variable Not Found' });
+    return [200, { ...v, value: v.hidden ? null : v.value }];
+  }
+
+  if (key === 'GET pages') {
+    if (!p.pagesUrl) throw new HttpError(404, { message: '404 Not Found' });
+    return [
+      200,
+      {
+        url: p.pagesUrl,
+        is_unique_domain_enabled: true,
+        force_https: true,
+        deployments: [],
+        primary_domain: null,
+      },
+    ];
+  }
+  void c;
+  void d;
+  return undefined;
+}
+
+/** Just enough of POST /api/graphql for doctor: aiCatalogConfiguredItems(projectId:, itemTypes: [FLOW]). */
+function graphql(state: FakeState, body: Record<string, unknown>) {
+  const query = String(body.query ?? '');
+  if (!query.includes('aiCatalogConfiguredItems'))
+    return { errors: [{ message: 'gitlab-fake supports only aiCatalogConfiguredItems' }] };
+  const vars = (body.variables ?? {}) as Record<string, unknown>;
+  const projectId = String(vars.projectId ?? /projectId:\s*"([^"]+)"/.exec(query)?.[1] ?? '');
+  const nodes =
+    projectId === `gid://gitlab/Project/${state.projectId}`
+      ? state.project.consumers.map((c) => ({
+          id: `gid://gitlab/Ai::Catalog::ItemConsumer/${c.id}`,
+          enabled: c.enabled,
+          item: { name: c.name, itemType: 'FLOW' },
+        }))
+      : [];
+  return { data: { aiCatalogConfiguredItems: { nodes } } };
+}
+
 function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -500,12 +725,40 @@ function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 export async function start(
   options: { projectId?: string; projectToken?: string; userToken?: string } = {},
 ): Promise<FakeGitLab> {
+  const projectToken = options.projectToken ?? 'glpat-fake-probation';
+  const userToken = options.userToken ?? 'glpat-fake-owner';
+  const token = (id: number, name: string): TokenInfo => ({
+    id,
+    name,
+    scopes: ['api'],
+    active: true,
+    revoked: false,
+    expires_at: '2027-01-31',
+    user_id: id,
+  });
   const state: FakeState = {
     projectId: options.projectId ?? '42',
+    project: {
+      path: 'demo/tallybook',
+      visibility: 'private',
+      license: null,
+      only_allow_merge_if_pipeline_succeeds: false,
+      remove_source_branch_after_merge: false,
+      labels: [],
+      schedules: [],
+      protectedTags: [],
+      variables: [],
+      tokens: new Map([
+        [projectToken, token(1, 'probation-bot')],
+        [userToken, token(2, 'owner')],
+      ]),
+      consumers: [],
+      pagesUrl: null,
+    },
     defaultBranch: 'main',
     baseUrl: '',
-    projectToken: options.projectToken ?? 'glpat-fake-probation',
-    userToken: options.userToken ?? 'glpat-fake-owner',
+    projectToken,
+    userToken,
     branches: new Map([['main', new Map([['README.md', '# Tallybook\n']])]]),
     issues: [],
     mrs: [],
@@ -533,7 +786,7 @@ export async function start(
       (req.headers['private-token'] as string | undefined) ??
       (auth?.startsWith('Bearer ') ? auth.slice(7) : undefined) ??
       '';
-    if (token !== state.projectToken && token !== state.userToken)
+    if (token !== state.projectToken && token !== state.userToken && !state.project.tokens.has(token))
       return send(401, { message: '401 Unauthorized' });
     const injected = state.fail?.(method, path);
     if (injected) {

@@ -32,6 +32,7 @@ export interface Issue {
   description: string;
   labels: string[];
   state: string;
+  updated_at?: string;
 }
 
 export interface MrDiff {
@@ -39,6 +40,68 @@ export interface MrDiff {
   old_path: string;
   deleted_file: boolean;
   diff: string;
+}
+
+export interface Project {
+  id: number;
+  path_with_namespace: string;
+  web_url: string;
+  default_branch: string;
+  visibility: string;
+  /** Only present when requested with ?license=true; null when GitLab detects no license. */
+  license?: { key: string; name: string } | null;
+  only_allow_merge_if_pipeline_succeeds?: boolean;
+  remove_source_branch_after_merge?: boolean;
+}
+
+export interface Label {
+  id: number;
+  name: string;
+  color: string;
+  description: string | null;
+  is_project_label?: boolean;
+}
+
+export interface PipelineSchedule {
+  id: number;
+  description: string;
+  ref: string;
+  cron: string;
+  cron_timezone: string;
+  active: boolean;
+  /** Only on GET of a single schedule, and only for Maintainers or the schedule owner. */
+  variables?: { key: string; value: string; variable_type?: string }[];
+}
+
+export interface ProtectedTag {
+  name: string;
+  create_access_levels: { access_level: number | null; access_level_description?: string }[];
+}
+
+export interface CiVariable {
+  key: string;
+  /** null for hidden (masked_and_hidden) variables. */
+  value: string | null;
+  protected: boolean;
+  masked: boolean;
+  hidden?: boolean;
+  environment_scope: string;
+  variable_type: string;
+}
+
+export interface TokenInfo {
+  id: number;
+  name: string;
+  scopes: string[];
+  active: boolean;
+  revoked: boolean;
+  expires_at: string | null;
+  user_id: number;
+}
+
+export interface PagesSettings {
+  url: string;
+  deployments: { url: string; created_at: string }[];
 }
 
 export class GitLab {
@@ -189,5 +252,115 @@ export class GitLab {
       web_url?: string | null;
       workload?: { id: number | null; message: string | null };
     }>('POST', '/ai/duo_workflows/workflows', { project_id: this.config.projectId, ...body }, userToken);
+  }
+
+  // --- Project setup and preflight (scripts/gitlab-setup.ts, scripts/doctor.ts). Paths from doc/api/*.md. ---
+
+  /** GET that resolves undefined on 404, for "does it exist" probes. */
+  private async find<T>(path: string): Promise<T | undefined> {
+    try {
+      return await this.call<T>('GET', path);
+    } catch (error) {
+      if (String(error).includes('→ 404')) return undefined;
+      throw error;
+    }
+  }
+
+  /** Follows offset pagination at 100 per page (call() does not expose headers). */
+  private async all<T>(path: string): Promise<T[]> {
+    const sep = path.includes('?') ? '&' : '?';
+    const out: T[] = [];
+    for (let page = 1; ; page++) {
+      const batch = await this.call<T[]>('GET', `${path}${sep}per_page=100&page=${page}`);
+      out.push(...batch);
+      if (batch.length < 100) return out;
+    }
+  }
+
+  // doc/api/projects.md: GET /projects/:id?license=true
+  getProject(license = false) {
+    return this.call<Project>('GET', `/projects/:id${license ? '?license=true' : ''}`);
+  }
+
+  // doc/api/projects.md: PUT /projects/:id
+  updateProject(body: {
+    only_allow_merge_if_pipeline_succeeds?: boolean;
+    remove_source_branch_after_merge?: boolean;
+  }) {
+    return this.call<Project>('PUT', '/projects/:id', body);
+  }
+
+  // doc/api/labels.md: includes ancestor group labels by default (is_project_label tells them apart).
+  listLabels() {
+    return this.all<Label>('/projects/:id/labels');
+  }
+
+  createLabel(body: { name: string; color: string; description: string }) {
+    return this.call<Label>('POST', '/projects/:id/labels', body);
+  }
+
+  // label_id accepts the label's ID or title.
+  updateLabel(name: string, body: { color: string; description: string }) {
+    return this.call<Label>('PUT', `/projects/:id/labels/${encodeURIComponent(name)}`, body);
+  }
+
+  // doc/api/pipeline_schedules.md
+  listPipelineSchedules() {
+    return this.all<PipelineSchedule>('/projects/:id/pipeline_schedules');
+  }
+
+  getPipelineSchedule(id: number) {
+    return this.call<PipelineSchedule>('GET', `/projects/:id/pipeline_schedules/${id}`);
+  }
+
+  createPipelineSchedule(body: { description: string; ref: string; cron: string; cron_timezone?: string }) {
+    return this.call<PipelineSchedule>('POST', '/projects/:id/pipeline_schedules', body);
+  }
+
+  createPipelineScheduleVariable(id: number, body: { key: string; value: string }) {
+    return this.call('POST', `/projects/:id/pipeline_schedules/${id}/variables`, body);
+  }
+
+  // doc/api/protected_tags.md: name may be a wildcard such as catalog-*.
+  getProtectedTag(name: string) {
+    return this.find<ProtectedTag>(`/projects/:id/protected_tags/${encodeURIComponent(name)}`);
+  }
+
+  protectTag(name: string, createAccessLevel: number) {
+    return this.call<ProtectedTag>('POST', '/projects/:id/protected_tags', {
+      name,
+      create_access_level: createAccessLevel,
+    });
+  }
+
+  // doc/api/project_level_variables.md: values are returned to Maintainers (null when hidden).
+  listVariables() {
+    return this.all<CiVariable>('/projects/:id/variables');
+  }
+
+  // doc/api/personal_access_tokens.md: "self" informs on the token making the request (also project tokens).
+  tokenSelf(token = this.config.token) {
+    return this.call<TokenInfo>('GET', '/personal_access_tokens/self', undefined, token);
+  }
+
+  // doc/api/pages.md: Maintainer role; 404 until the first pages deployment.
+  getPages() {
+    return this.find<PagesSettings>('/projects/:id/pages');
+  }
+
+  // doc/api/graphql/_index.md: POST /api/graphql with a Bearer token. GraphQL reports errors with HTTP 200.
+  async graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+    const url = this.config.apiUrl.replace(/\/v4\/?$/, '/graphql');
+    const res = await this.fetcher(url, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${this.config.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!res.ok)
+      throw new Error(`GitLab POST /api/graphql → ${res.status}: ${(await res.text()).slice(0, 500)}`);
+    const json = (await res.json()) as { data?: T; errors?: { message: string }[] };
+    if (json.errors?.length || !json.data)
+      throw new Error(`GitLab GraphQL: ${json.errors?.map((e) => e.message).join('; ') ?? 'no data'}`);
+    return json.data;
   }
 }

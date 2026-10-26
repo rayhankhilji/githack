@@ -49,9 +49,9 @@ export function rejectionNote(zones: string[], points: number): string {
 export const IN_PROGRESS = 'undertaker::in-progress';
 export const DEFAULT_STALE_HOURS = 6;
 
-// GitLab returns updated_at on every issue; read it defensively since the Issue type does not declare it.
+// GitLab returns updated_at on every issue; still validate it, since a bad value must never trigger a reset.
 function updatedAt(issue: Issue): number | undefined {
-  const raw = (issue as Issue & { updated_at?: unknown }).updated_at;
+  const raw = issue.updated_at;
   const t = typeof raw === 'string' ? Date.parse(raw) : Number.NaN;
   return Number.isNaN(t) ? undefined : t;
 }
