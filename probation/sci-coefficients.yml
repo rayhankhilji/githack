@@ -1,24 +1,37 @@
 # Coefficients for the Software Carbon Intensity calculation (Green Software Foundation SCI spec, ISO/IEC 21031:2024).
 # SCI = ((E * I) + M) per R, with R = 1,000 requests.
-# Compute and memory coefficients follow the Cloud Carbon Footprint (CCF) methodology for GCP.
-# Grid intensity: replace with the current value for your Cloud Run region from Google Cloud's
-# "Carbon free energy for Google Cloud regions" page before submitting (values below are the
-# location-based averages used at build time and must be re-checked).
+# Compute, memory, network and PUE follow the Cloud Carbon Footprint (CCF) methodology for GCP.
+# All values below were re-checked on 2026-10-26 against the sources named next to them.
 
 compute:
-  # CCF GCP average min/max watts per vCPU. A busy CPU-second is billed at max watts (conservative).
+  # CCF GCP median min/max watts per vCPU (0% / 100% utilisation). A busy CPU-second is billed at max watts (conservative).
+  # Source: https://www.cloudcarbonfootprint.org/docs/methodology/ (GCP coefficients), retrieved 2026-10-26.
   min_watts_per_vcpu: 0.71
   max_watts_per_vcpu: 4.26
 memory:
+  # CCF memory coefficient, same source, retrieved 2026-10-26.
   kwh_per_gb_hour: 0.000392
 network:
+  # CCF networking coefficient, same source, retrieved 2026-10-26.
   kwh_per_gb: 0.001
+# CCF GCP average PUE, same source, retrieved 2026-10-26.
 pue: 1.1
 grid:
   region: us-central1
-  grams_co2e_per_kwh: 413
+  # Location-based grid carbon intensity for us-central1 (Iowa), Google's 2025 data (CFE 88%):
+  # 431.95 gCO2eq/kWh, shown rounded as 432 on the page.
+  # Sources, retrieved 2026-10-26:
+  #   https://cloud.google.com/sustainability/region-carbon
+  #   https://github.com/GoogleCloudPlatform/region-carbon-info/blob/main/data/yearly/2025.csv
+  # (The 2024 value was 412.72, with CFE 87%.)
+  grams_co2e_per_kwh: 432
 embodied:
   # Server embodied emissions amortised per vCPU-hour: 1,200 kgCO2e over 4 years, 48 vCPUs.
+  # CCF method M = TE * (TR/EL) * (RR/TR) with EL = 4 years: https://www.cloudcarbonfootprint.org/docs/embodied-emissions
+  # (retrieved 2026-10-26). The 4-year lifespan and per-vCPU allocation are verified there.
+  # NOT verified: TE = 1,200 kgCO2e and the 48-vCPU host are our own assumptions (Dell R740-class baseline).
+  # CCF publishes per-machine-type TE in its ccf-coefficients repository, not a single figure.
+  # 1,200,000 g / (4 * 8,760 h) / 48 vCPU = 0.713 g per vCPU-hour.
   grams_per_vcpu_hour: 0.713
 workload:
   # Cloud Run scales to zero at this traffic level: assume one cold start (one image pull) per 1k requests.
