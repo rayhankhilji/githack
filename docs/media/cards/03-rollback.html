@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- Video title card 03-rollback: 1920×1080, rendered to png/03-rollback.png by scripts/render-media.ts. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1920,height=1080">
+<title>Probation — the rollback</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..600,0..100,0..1;1,9..144,600,0..100,0..1&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f4f1ea;--card:#fbf9f4;--ink:#1c1a17;--muted:#6d675d;--line:#d9d3c6;--assisted:#b45309;--supervised:#1d4ed8;--hands:#15803d;--bad:#b91c1c}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px}
+body{position:relative;background:var(--paper);color:var(--ink);font:28px/1.5 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.frame{position:absolute;inset:72px 112px;display:flex;flex-direction:column}
+.head,.foot{display:flex;justify-content:space-between;align-items:baseline;font-size:22px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.head{padding-bottom:22px;border-bottom:2px solid var(--ink)}
+.foot{margin-top:auto;padding-top:22px;border-top:1px solid var(--line);letter-spacing:.04em;text-transform:none}
+.serif{font-family:Fraunces,Georgia,serif;font-weight:600;font-optical-sizing:auto}
+code{font-family:inherit;color:var(--ink)}
+/* Fraunces italics default to "wonky" swash forms (a long-s style l) at display sizes; turn them off. */
+.serif em{font-variation-settings:"WONK" 0;letter-spacing:0}
+.main{flex:1;display:grid;grid-template-columns:1fr 860px;gap:80px;align-items:center}
+.stamp{display:inline-block;border:3px solid var(--hands);color:var(--hands);font-weight:600;font-size:24px;letter-spacing:.18em;text-transform:uppercase;padding:8px 18px;border-radius:6px;margin-bottom:36px}
+h1{font-size:112px;line-height:1.02;letter-spacing:-.015em;margin:0}
+h1 em{display:block;font-style:italic;color:var(--bad);margin-top:24px}
+.log{background:var(--card);border:1px solid var(--line);border-radius:8px;font-size:24px;line-height:1.5}
+.log .bar{display:flex;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--line);color:var(--muted);font-size:20px;letter-spacing:.08em;text-transform:uppercase}
+.log ol{list-style:none;margin:0;padding:22px 28px 26px}
+.log li{display:grid;grid-template-columns:36px 1fr auto;gap:12px;padding:7px 0;white-space:nowrap}
+.ok{color:var(--hands)}.no{color:var(--bad);font-weight:600}.m{color:var(--muted)}
+.log li.hit{background:color-mix(in srgb,var(--bad) 8%,transparent);margin:4px -28px;padding:10px 28px;border-top:1px solid var(--bad);border-bottom:1px solid var(--bad)}
+.log li.act{grid-template-columns:36px 1fr}
+.note{color:var(--muted);font-size:20px;padding:0 28px 22px;white-space:normal}
+</style></head><body><div class="frame">
+<div class="head"><span>Probation + Undertaker</span><span>File No. 03 · Act four</span></div>
+<div class="main">
+  <div>
+    <div class="stamp">Hands-off · legacy zone</div>
+    <h1 class="serif">Hands-off.<br>No human.<em>The canary caught&nbsp;it.</em></h1>
+  </div>
+  <div class="log">
+    <div class="bar"><span>soak · canary 10% · 3 min</span><span>!4 export.csv</span></div>
+    <ol>
+      <li><span class="ok">ok</span><span>dashboard</span><span class="m">200</span></li>
+      <li><span class="ok">ok</span><span>invoice-api</span><span class="m">200</span></li>
+      <li class="hit"><span class="no">✖</span><span class="no">bookkeeping-partner-monthly-export</span><span class="no">404</span></li>
+      <li class="act"><span class="m">→</span><span>traffic back to the previous revision</span></li>
+      <li class="act"><span class="m">→</span><span>commit reverted · grave exhumed</span></li>
+      <li class="act"><span class="m">→</span><span>legacy <b class="no">−40</b> · Hands-off → <b style="color:var(--assisted)">Assisted</b></span></li>
+    </ol>
+    <div class="note">Called once a month. Invisible to a 7-day census; the soak synthetic still knows it.</div>
+  </div>
+</div>
+<div class="foot"><span>Synthetic checks: <code>probation/synthetics.yml</code></span><span>The grave is labelled do-not-bury. It is never touched again.</span></div>
+</div></body></html>

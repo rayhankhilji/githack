@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- Video title card 02-ladder: 1920×1080, rendered to png/02-ladder.png by scripts/render-media.ts. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1920,height=1080">
+<title>Probation — the ladder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..600,0..100,0..1;1,9..144,600,0..100,0..1&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f4f1ea;--card:#fbf9f4;--ink:#1c1a17;--muted:#6d675d;--line:#d9d3c6;--assisted:#b45309;--supervised:#1d4ed8;--hands:#15803d;--bad:#b91c1c}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px}
+body{position:relative;background:var(--paper);color:var(--ink);font:28px/1.5 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.frame{position:absolute;inset:72px 112px;display:flex;flex-direction:column}
+.head,.foot{display:flex;justify-content:space-between;align-items:baseline;font-size:22px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.head{padding-bottom:22px;border-bottom:2px solid var(--ink)}
+.foot{margin-top:auto;padding-top:22px;border-top:1px solid var(--line);letter-spacing:.04em;text-transform:none}
+.serif{font-family:Fraunces,Georgia,serif;font-weight:600;font-optical-sizing:auto}
+code{font-family:inherit;color:var(--ink)}
+/* Fraunces italics default to "wonky" swash forms (a long-s style l) at display sizes; turn them off. */
+.serif em{font-variation-settings:"WONK" 0;letter-spacing:0}
+.title{margin:48px 0 0}
+h1{font-size:96px;line-height:1.02;letter-spacing:-.015em;margin:0}
+.sub{color:var(--muted);font-size:28px;margin-top:16px}
+.sub b{color:var(--hands);font-weight:600}
+.ladder{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:40px;align-items:end;margin-top:32px}
+.step{background:var(--card);border:1px solid var(--line);border-top:8px solid var(--c);border-radius:8px;padding:28px 34px 30px;display:flex;flex-direction:column}
+.step.a{--c:var(--assisted);height:250px}.step.s{--c:var(--supervised);height:330px}.step.h{--c:var(--hands);height:410px}
+.lv{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:60px;line-height:1;color:var(--c)}
+.th{font-size:30px;font-weight:600;margin-top:14px}
+.who{color:var(--muted);font-size:24px;line-height:1.45;margin-top:auto}
+.who b{color:var(--ink);font-weight:600}
+.drop{display:block;width:100%;height:104px;margin-bottom:8px;overflow:visible}
+.drop path{fill:none;stroke:var(--bad);stroke-width:3}
+.drop .tip{fill:var(--bad);stroke:none}
+.drop text{fill:var(--bad);font:600 26px "IBM Plex Mono",ui-monospace,monospace}
+</style></head><body><div class="frame">
+<div class="head"><span>Probation + Undertaker</span><span>File No. 02 · The ladder</span></div>
+<div class="title"><h1 class="serif">Autonomy is earned, per zone.</h1>
+<div class="sub"><b>+10</b> for every deletion that survives a production soak.</div></div>
+<div class="ladder">
+  <div class="step a"><div class="lv">Assisted</div><div class="th">≥ 0 pts</div><div class="who"><b>A human</b> approves every merge and every deploy.</div></div>
+  <div class="step s"><div class="lv">Supervised</div><div class="th">≥ 10 pts</div><div class="who">The gate <b>merges it</b>. A human approves production.</div></div>
+  <div class="step h"><div class="lv">Hands-off</div><div class="th">≥ 30 pts</div><div class="who">Merges and ships <b>alone</b>, through canary and soak.</div></div>
+</div>
+<svg class="drop" viewBox="0 0 1696 104" role="img" aria-label="A rollback costs 40 points and drops the zone back to Assisted">
+  <path d="M1427 0 V44 H269 V18"/><path class="tip" d="M257 20 L269 0 L281 20 Z"/>
+  <text x="848" y="90" text-anchor="middle">Rollback −40 → straight back to Assisted</text>
+</svg>
+<div class="foot"><span>Decided by <code>probation/src/gate.ts</code> from <code>probation/policy.yml</code></span><span>Thresholds 0 / 10 / 30</span></div>
+</div></body></html>

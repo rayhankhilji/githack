@@ -67,7 +67,22 @@ const tick = () => {
   return new Date(clock).toISOString();
 };
 
+// SYNTHETIC SCI data: not measured. Shaped like `npm run sci` output so the board's sparkline tells the
+// story (each surviving deletion trims gCO₂e per 1k requests; a rollback puts the cost back).
+let sciG = 0.0418;
+let imageMb = 184.6;
+const jitter = (i: number) => 1 + (((i * 7919) % 11) - 5) / 1000;
+const fakeSha = (i: number) => ((0x9f3a1c2d * (i + 3)) >>> 0).toString(16).padStart(8, '0');
+const measure = (at: string) => {
+  const i = ledger.sci?.history.length ?? 0;
+  const point = { at, sha: fakeSha(i), gramsPer1kRequests: +(sciG * jitter(i)).toFixed(5), imageMb };
+  ledger.sci ??= { history: [] };
+  ledger.sci.history.push(point);
+  return point.gramsPer1kRequests;
+};
+
 console.log('⚰️  Probation mock run\n');
+measure(new Date(clock).toISOString());
 for (const act of acts) {
   const d = decide(policy, ledger, { agent, files: act.files, introducedFindings: [], checksPassed: true });
   const zones = d.zones.map((z) => z.zone);
@@ -90,14 +105,30 @@ for (const act of acts) {
   if (d.verdict === 'merge_supervised') console.log('   gate: auto-merged; human approved production');
   if (d.verdict === 'merge_hands_off') console.log('   gate: auto-merged; canary → soak with no human');
   const event = act.production === 'survives' ? 'survived_soak' : 'rolled_back';
+  // Synthetic: ~0.45% less carbon per deleted line, measured on the canary before the soak verdict.
+  const sciBefore = ledger.sci?.history.at(-1)?.gramsPer1kRequests ?? sciG;
+  const prevG = sciG;
+  const prevMb = imageMb;
+  sciG *= 1 - d.linesRemoved * 0.0045;
+  imageMb = +(imageMb - d.linesRemoved * 0.35).toFixed(1);
+  const sciAfter = measure(new Date(clock + 20 * 60_000).toISOString());
   const r = applyEvent(ledger, policy, { agent, zones, event, ref: { mr: act.mr }, at: tick() });
   ledger = r.ledger;
+  if (event === 'rolled_back') {
+    // The revert restores the old code, so the next measurement is back where it was.
+    sciG = prevG;
+    imageMb = prevMb;
+    measure(new Date(clock + 5 * 60_000).toISOString());
+  }
   ledger.graveyard.push({
     at: r.written[0].at,
     mr: act.mr,
     title: act.title,
     zone: zones.join('+'),
     linesRemoved: d.linesRemoved,
+    // An exhumed grave saved nothing: the revert put the code (and its carbon) back.
+    sciDeltaPct:
+      event === 'survived_soak' ? +(((sciAfter - sciBefore) / sciBefore) * 100).toFixed(2) : undefined,
     status: event === 'survived_soak' ? 'buried' : 'exhumed',
   });
   for (const e of r.written) {
@@ -112,6 +143,10 @@ for (const act of acts) {
   }
 }
 
+const sci = ledger.sci?.history ?? [];
+console.log(
+  `sci (synthetic): ${sci[0].gramsPer1kRequests} → ${sci.at(-1)?.gramsPer1kRequests} gCO₂e/1k req over ${sci.length} measurements\n`,
+);
 mkdirSync('.out', { recursive: true });
 writeFileSync('.out/mock-ledger.json', `${JSON.stringify(ledger, null, 2)}\n`);
 writeFileSync('.out/board.html', renderBoard(ledger, policy));

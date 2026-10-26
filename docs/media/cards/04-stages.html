@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- Video title card 04-stages: 1920×1080, rendered to png/04-stages.png by scripts/render-media.ts. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=1920,height=1080">
+<title>Probation — nine stages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..600,0..100,0..1;1,9..144,600,0..100,0..1&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f4f1ea;--card:#fbf9f4;--ink:#1c1a17;--muted:#6d675d;--line:#d9d3c6;--assisted:#b45309;--supervised:#1d4ed8;--hands:#15803d;--bad:#b91c1c}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px}
+body{position:relative;background:var(--paper);color:var(--ink);font:28px/1.5 "IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.frame{position:absolute;inset:72px 112px;display:flex;flex-direction:column}
+.head,.foot{display:flex;justify-content:space-between;align-items:baseline;font-size:22px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.head{padding-bottom:22px;border-bottom:2px solid var(--ink)}
+.foot{margin-top:auto;padding-top:22px;border-top:1px solid var(--line);letter-spacing:.04em;text-transform:none}
+.serif{font-family:Fraunces,Georgia,serif;font-weight:600;font-optical-sizing:auto}
+code{font-family:inherit;color:var(--ink)}
+/* Fraunces italics default to "wonky" swash forms (a long-s style l) at display sizes; turn them off. */
+.serif em{font-variation-settings:"WONK" 0;letter-spacing:0}
+.title{margin:36px 0 28px;display:flex;justify-content:space-between;align-items:baseline}
+h1{font-size:88px;line-height:1;letter-spacing:-.015em;margin:0}
+.title span{color:var(--muted);font-size:26px}
+ol{list-style:none;margin:0 0 36px;padding:0;flex:1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}
+li{display:grid;grid-template-columns:56px 1fr;gap:8px;padding:24px 32px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 -1px -1px 0}
+.n{color:var(--muted);font-size:22px;padding-top:9px}
+.st{font-size:40px;line-height:1.1}
+.d{color:var(--muted);font-size:21px;line-height:1.42;margin-top:8px}
+</style></head><body><div class="frame">
+<div class="head"><span>Probation + Undertaker</span><span>File No. 04 · The lifecycle</span></div>
+<div class="title"><h1 class="serif">Nine stages. One lifecycle.</h1><span>GitLab CI → Cloud Run</span></div>
+<ol>
+  <li><span class="n">01</span><div><div class="st serif">Plan</div><div class="d">Nightly census files a grave issue for code production proves dead.</div></div></li>
+  <li><span class="n">02</span><div><div class="st serif">Create</div><div class="d">Undertaker flow digs it: a deletion-only MR plus a coroner’s report.</div></div></li>
+  <li><span class="n">03</span><div><div class="st serif">Verify</div><div class="d">verify:check (lint, types, tests) and a replay of real traffic.</div></div></li>
+  <li><span class="n">04</span><div><div class="st serif">Package</div><div class="d">Cloud Build builds the image; its size feeds the SCI note.</div></div></li>
+  <li><span class="n">05</span><div><div class="st serif">Secure</div><div class="d">SAST, secret and dependency scanning, plus an npm audit gate.</div></div></li>
+  <li><span class="n">06</span><div><div class="st serif">Release</div><div class="d">Canary child pipeline: staging → canary → soak → promote.</div></div></li>
+  <li><span class="n">07</span><div><div class="st serif">Configure</div><div class="d">Cloud Run revision tags, traffic split and feature flags.</div></div></li>
+  <li><span class="n">08</span><div><div class="st serif">Monitor</div><div class="d">Soak synthetics and census request logs watch production.</div></div></li>
+  <li><span class="n">09</span><div><div class="st serif">Govern</div><div class="d">policy.yml, CODEOWNERS and the append-only ledger decide autonomy.</div></div></li>
+</ol>
+<div class="foot"><span>Every stage is a job in <code>.gitlab-ci.yml</code></span><span>Nothing ships without passing all nine.</span></div>
+</div></body></html>
