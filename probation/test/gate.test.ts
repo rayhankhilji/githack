@@ -53,6 +53,14 @@ describe('probation gate', () => {
     expect(d.verdict).toBe('block');
   });
 
+  it('T-F03-AC6: the Clerk agent and MCP server are forbidden zones, not just unzoned', () => {
+    for (const path of ['agents/probation-clerk.yml', 'mcp/tools.ts']) {
+      const d = decide(policy, ledgerWith({ legacy: 100 }), { ...base, files: [edit(path, 0, 1)] });
+      expect(d.verdict).toBe('block');
+      expect(d.reasons[0]).toContain('forbidden zone **probation**');
+    }
+  });
+
   it('T-F03-AC7: a change that grows the codebase is blocked', () => {
     const d = decide(policy, ledgerWith({ legacy: 100 }), {
       ...base,

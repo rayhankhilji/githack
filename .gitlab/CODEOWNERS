@@ -3,6 +3,8 @@
 /probation/policy.yml @rayhankhilji
 /probation/synthetics.yml @rayhankhilji
 /flows/ @rayhankhilji
+/agents/ @rayhankhilji
+/mcp/ @rayhankhilji
 /.gitlab-ci.yml @rayhankhilji
 /ci/ @rayhankhilji
 /.gitlab/ @rayhankhilji

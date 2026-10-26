@@ -81,7 +81,7 @@ The point of the project: "code generation is solved, so what happens after?" Co
     - **Supervised:** auto-merge, but production needs approval;
     - **Hands-off:** auto-merge and auto-release.
   - It blocks when the MR:
-    - touches a forbidden zone (`auth`, `probation`, which includes its own rules and CI);
+    - touches a forbidden zone (`auth`, `probation`, which includes its own rules, flow, Clerk agent, MCP server and CI);
     - touches a file outside every zone;
     - adds more lines than it removes;
     - edits or adds test lines (deleting tests of buried code is neutral);

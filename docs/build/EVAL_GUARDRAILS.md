@@ -26,7 +26,7 @@
 | ID | Rule | Reason | Verified by |
 |---|---|---|---|
 | G-SEC-01 | Agent MRs merge only through `probation:gate` | Autonomy is enforced, not trusted | T-F03-AC1..AC3; the flow has no merge tool |
-| G-SEC-02 | `app/src/auth/**`, `probation/**`, `flows/**`, `ci/**`, `infra/**`, `.gitlab/**` and `.gitlab-ci.yml` are forbidden to the agent | The agent can't widen its own leash or weaken auth | T-F03-AC5, T-F03-AC6; CODEOWNERS |
+| G-SEC-02 | `app/src/auth/**`, `probation/**`, `flows/**`, `agents/**`, `mcp/**`, `ci/**`, `infra/**`, `.gitlab/**` and `.gitlab-ci.yml` are forbidden to the agent | The agent can't widen its own leash or weaken auth | T-F03-AC5, T-F03-AC6; CODEOWNERS |
 | G-SEC-03 | Agent MRs must remove more lines than they add, and may only delete tests | Deletion-only mandate; the safety net can't be weakened | T-F03-AC7, T-F03-AC9 |
 | G-SEC-04 | New security findings block and cost −30 | Deletions must not add risk | T-F03-AC8, T-F02-AC3 |
 | G-SEC-05 | GCP auth through WIF restricted to this project's path; no keys in the repo | No long-lived credentials | `infra/gcp-bootstrap.sh` attribute condition |

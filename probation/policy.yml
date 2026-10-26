@@ -26,7 +26,8 @@ zones:
     globs: ['app/src/auth/**']
     forbidden: true
   - name: probation
-    globs: ['probation/**', 'flows/**', '.gitlab-ci.yml', 'ci/**', '.gitlab/**', 'infra/**']
+    # The agent's own leash and tooling: its rules, its flow, the Clerk agent, the MCP server, CI and infra.
+    globs: ['probation/**', 'flows/**', 'agents/**', 'mcp/**', '.gitlab-ci.yml', 'ci/**', '.gitlab/**', 'infra/**']
     forbidden: true
   # Tests of buried code may be deleted alongside it; they never raise or lower the level.
   # Undertaker may not add or edit tests (that would let it weaken the safety net).
