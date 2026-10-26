@@ -6,6 +6,7 @@ import { renderBoard } from '../probation/src/board.ts';
 import { decide, label } from '../probation/src/gate.ts';
 import { applyEvent, emptyLedger, type Ledger } from '../probation/src/ledger.ts';
 import { loadPolicy } from '../probation/src/policy.ts';
+import { renderReplay } from '../probation/src/replay.ts';
 
 const policy = loadPolicy();
 const agent = 'undertaker';
@@ -150,4 +151,6 @@ console.log(
 mkdirSync('.out', { recursive: true });
 writeFileSync('.out/mock-ledger.json', `${JSON.stringify(ledger, null, 2)}\n`);
 writeFileSync('.out/board.html', renderBoard(ledger, policy));
-console.log('wrote .out/mock-ledger.json and .out/board.html');
+// The board links to replay.html, so write it alongside.
+writeFileSync('.out/replay.html', renderReplay(ledger, policy, new Date().toISOString()));
+console.log('wrote .out/mock-ledger.json, .out/board.html and .out/replay.html');

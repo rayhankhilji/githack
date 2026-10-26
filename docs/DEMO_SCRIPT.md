@@ -24,7 +24,23 @@ Record at 1080p. Use a narrated voice-over (AI narration is allowed), no music o
 | `04-stages` | The nine stages and what runs in each | 2:33 |
 | `05-end` | "Autonomy you can earn — and lose." · Probation · GitLab Duo Agent Platform · Google Cloud Run | 2:46 |
 
+## If live footage is short: the replay cut
+
+`docs/media/replay.webm` (and `replay.mp4` for editors) is a ~31 s, 1920×1080 recording of the ledger replay page (`replay.html`, published next to the board) playing the mock story at 1×. It shows the same five acts as the live demo, drawn from the ledger, so it can stand in for any act whose live footage is missing or too slow. Clip times:
+
+| Clip | Shows | Replaces |
+|---|---|---|
+| 0:00–0:03 | "undertaker starts on probation · legacy at 0 · Assisted" | Card 02-ladder, or the end of 0:50–1:15 |
+| 0:03–0:08 | !1 survived the soak · +10 → Supervised (badge turns blue, first tombstone) | 1:15–1:35 (MR note and promotion issue) |
+| 0:08–0:17 | !2 and !3 survive · 30 pts → Hands-off (green) | 1:35–1:50 montage |
+| 0:17–0:23 | !4 rolled back: red flash, "−40 · rolled back" stamp, the line drops, tombstone EXHUMED | 2:11–2:25, after Card 03-rollback: rollback job, revert and demotion issue (keep the live soak-log 404 if you have it) |
+| 0:23–0:31 | !5 survives back to Supervised, then "4 graves buried · 1 exhumed" and "Autonomy you can earn, and lose." | 2:40–2:46, before Card 05-end |
+
+Cut the replay in hard (no transition) and narrate over it as written; its captions match the voice-over. Key frames for the README or slides: `docs/media/replay-frames/01.png` (start), `02.png` (Hands-off reached), `03.png` (rollback flash), `04.png` (closing record).
+
+Regenerate after any change to the replay page or the mock story: `node scripts/record-replay.ts` (about 3 minutes; `--frames-only` for just the PNGs). It uses the globally installed Playwright + Chromium and the system `ffmpeg`. To show it live instead, open `replay.html?autoplay=1&speed=1.5` from the published board (space pauses, ← and → step).
+
 **Before recording:**
 - Run `node scripts/render-media.ts` if a card or the board changed, so the PNGs match.
 - Run `npm run demo:mock` to rehearse the narration against `.out/board.html`.
-- Pre-open the tabs: the issue list, MR !n (one per act), the child pipeline logs, the board, and the Cloud Run revisions page.
+- Pre-open the tabs: the issue list, MR !n (one per act), the child pipeline logs, the board, the board's `replay.html`, and the Cloud Run revisions page.

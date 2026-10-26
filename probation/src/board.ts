@@ -197,6 +197,7 @@ table{width:100%;border-collapse:collapse;min-width:640px}td,th{padding:8px 10px
 .grave{background:var(--card);border:1px solid var(--line);border-radius:90px 90px 6px 6px;padding:28px 16px 16px;text-align:center}
 .grave.exhumed{border-color:var(--bad)}.rip{font:600 15px Fraunces,Georgia,serif;letter-spacing:.12em;color:var(--muted)}.grave.exhumed .rip{color:var(--bad)}
 .nw{white-space:nowrap}.gt{margin:8px 0;font-weight:600;overflow-wrap:anywhere}.gm,.gd{color:var(--muted);font-size:12px}
+.replay{font:14px/1.55 "IBM Plex Mono",ui-monospace,monospace;margin-left:12px;white-space:nowrap}
 footer{margin-top:48px;color:var(--muted);font-size:12px}
 /* On phones the 720-unit chart shrinks to half size: scale its labels, lines and dots back up. */
 @media (max-width:480px){h1{font-size:32px;line-height:36px}.rule-label{font-size:22px}.rl-name{display:none}.series{stroke-width:3.5}.dot{r:7;stroke-width:2.5}}
@@ -211,7 +212,7 @@ footer{margin-top:48px;color:var(--muted);font-size:12px}
 <div class="stat"><b>${sciDelta === undefined ? '—' : pct(sciDelta)}</b><span>SCI change since first measurement${sciNow !== undefined ? ` (${sciNow.toFixed(4)} gCO₂e/1k req)` : ''}</span>${sciSparkline(hist)}</div>
 </div>
 <h2>Autonomy by zone</h2><div class="zones">${zoneCards}</div>
-<h2>Trust over time</h2>${trustChart(ledger.events, policy, touched)}
+<h2>Trust over time <a class="replay" href="replay.html">▶ Replay the story</a></h2>${trustChart(ledger.events, policy, touched)}
 <div class="legend">${touched.map((z, i) => `<span><i style="background:var(${['--hands', '--supervised', '--assisted', '--muted'][i % 4]})"></i>${esc(z)}</span>`).join('')}</div>
 <h2>Graveyard</h2>${graves ? `<div class="graves">${graves}</div>` : '<p class="sub">No graves yet. The census has not found anything dead, or Undertaker has not been allowed to dig.</p>'}
 <h2>Nine stages, one lifecycle</h2><ol class="stages">${stages}</ol>
