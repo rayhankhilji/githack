@@ -165,15 +165,18 @@ export class GitLab {
   }
 
   // Duo Agent Platform Flows API. Must use a human user's token: triggers by bots are ignored by design.
+  // Flows API (doc/api/duo_agent_platform_flows.md, ee/lib/api/ai/duo_workflows/workflows.rb). goal is optional
+  // (defaults to the flow description), issue_id is the issue IID, ai_catalog_item_consumer_id requires project_id.
+  // Needs a user token: a project access token cannot start Duo flows.
   startFlow(
-    body: { goal: string; ai_catalog_item_consumer_id: number; start_workflow: true; issue_id?: number },
+    body: { goal?: string; ai_catalog_item_consumer_id: number; start_workflow: true; issue_id?: number },
     userToken: string,
   ) {
-    return this.call<{ id: number; workload?: { pipeline_path?: string } }>(
-      'POST',
-      '/ai/duo_workflows/workflows',
-      { project_id: this.config.projectId, ...body },
-      userToken,
-    );
+    return this.call<{
+      id: number;
+      status?: string;
+      web_url?: string | null;
+      workload?: { id: number | null; message: string | null };
+    }>('POST', '/ai/duo_workflows/workflows', { project_id: this.config.projectId, ...body }, userToken);
   }
 }

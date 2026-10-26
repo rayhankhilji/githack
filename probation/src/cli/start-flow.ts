@@ -1,51 +1,43 @@
 // start-flow — scheduled job. Picks the next candidate grave and starts the Undertaker flow through the Flows API.
+import { goalFor, pickCandidate } from '../dig.ts';
 import { label } from '../gate.ts';
-import { levelOf } from '../ledger.ts';
 import { loadPolicy } from '../policy.ts';
 import { env, gitlab, hasFlag, ledgerStore, main } from './common.ts';
 
-const KIND_ORDER = ['dependency', 'export', 'flag', 'route'];
-
 main(async () => {
   const policy = loadPolicy();
-  const agent = Object.keys(policy.agents)[0];
   const gl = gitlab();
   const ledger = await ledgerStore().load();
-  const forbidden = new Set(policy.zones.filter((z) => z.forbidden).map((z) => z.name));
   const open = await gl.listIssues('labels=undertaker::candidate&state=opened&per_page=100');
-  const ready = open
-    .filter((i) => !i.labels.some((l) => l === 'undertaker::in-progress' || l === 'undertaker::do-not-bury'))
-    .map((i) => ({
-      issue: i,
-      zone: i.labels.find((l) => l.startsWith('zone::'))?.slice(6) ?? 'unzoned',
-      kind: i.labels.find((l) => l.startsWith('kind::'))?.slice(6) ?? 'route',
-    }))
-    .filter((c) => !forbidden.has(c.zone) && c.zone !== 'unzoned')
-    .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
-  const next = ready[0];
+  const next = pickCandidate(open, ledger, policy);
   if (!next) {
     console.log('No candidate graves to dig. Undertaker rests.');
     return;
   }
-  const level = levelOf(ledger, policy, agent, next.zone);
-  const goal = [
-    `Bury the dead code described in issue #${next.issue.iid}: ${next.issue.web_url}`,
-    `Zone: ${next.zone}. Your current probation level in this zone: ${label(level)}.`,
-    'Only delete. Do not add features. Touch only files in this zone plus tests that cover the deleted code.',
-  ].join('\n');
+  const goal = goalFor(next);
   if (hasFlag('dry-run')) {
     console.log(goal);
     return;
   }
-  const consumerId = Number(env.UNDERTAKER_CONSUMER_ID);
+  // Numeric suffix of the AiCatalogItemConsumer GID (RUNBOOK §3 step 4). A full GID is accepted too.
+  const consumerId = Number(
+    String(env.UNDERTAKER_CONSUMER_ID ?? '').replace(/^gid:\/\/gitlab\/[\w:]+\//, ''),
+  );
   const userToken = env.DUO_FLOW_TRIGGER_TOKEN;
-  if (!consumerId || !userToken)
-    throw new Error('UNDERTAKER_CONSUMER_ID and DUO_FLOW_TRIGGER_TOKEN are required');
+  if (!Number.isInteger(consumerId) || consumerId <= 0 || !userToken)
+    throw new Error('UNDERTAKER_CONSUMER_ID (numeric) and DUO_FLOW_TRIGGER_TOKEN are required');
+  // issue_id is the issue IID: the API resolves it with project.issues by iid (ee/lib/api/ai/duo_workflows/workflows.rb).
   const flow = await gl.startFlow(
     { goal, ai_catalog_item_consumer_id: consumerId, start_workflow: true, issue_id: next.issue.iid },
     userToken,
   );
   await gl.updateIssue(next.issue.iid, { add_labels: 'undertaker::in-progress' });
-  await gl.noteIssue(next.issue.iid, `⚰️ Undertaker flow #${flow.id} started (level: **${label(level)}**).`);
-  console.log(`started flow ${flow.id} for #${next.issue.iid}`);
+  const link = flow.web_url ? ` ([session](${flow.web_url}))` : '';
+  await gl.noteIssue(
+    next.issue.iid,
+    `⚰️ Undertaker flow #${flow.id} started${link} (level: **${label(next.level)}**).`,
+  );
+  console.log(
+    `started flow ${flow.id} for #${next.issue.iid}${flow.workload?.message ? `: ${flow.workload.message}` : ''}`,
+  );
 });

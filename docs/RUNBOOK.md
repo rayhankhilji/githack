@@ -50,14 +50,18 @@ Delete `k.json` afterwards.
 1. Run `npm run flow:print` and copy the output.
 2. In GitLab, go to **AI → Flows → New flow** (or Explore → AI Catalog → Flows → New flow, with this project as the managing project).
    - Name: `Undertaker`.
-   - Paste the YAML into the definition editor and save. The editor validates the schema.
-   - If it rejects a key, fix it there and copy the fix back into `flows/undertaker.yml`. The docs disagree on v1 vs `flow_v2` validation.
+   - Paste the YAML into the definition editor and save. The editor validates it against GitLab's `app/validators/json_schemas/ai_catalog/flow_v2.json`, which is the "Flow Registry v1" schema (hence `version: v1`). `flows/undertaker.yml` passes it; `max_cycles` is **not** allowed there, so don't add it back. If the editor still rejects a key, fix it there and copy the fix back into `flows/undertaker.yml`.
 3. **Enable** the flow on this project. GitLab creates a service account named like `ai-undertaker-<group>`. In the dialog, also add triggers **Assign** and **Mention**; they are the fallback (§5).
-4. Find the consumer ID. Open `https://gitlab.com/-/graphql-explorer` and run:
+4. Find the consumer ID. Open `https://gitlab.com/-/graphql-explorer` and run (numeric project ID from **Settings → General**):
    ```graphql
-   query { aiCatalogConfiguredItems(projectId: "gid://gitlab/Project/<numeric project id>") { nodes { id item { name } } } }
+   query {
+     aiCatalogConfiguredItems(projectId: "gid://gitlab/Project/<numeric project id>", itemTypes: [FLOW]) {
+       nodes { id enabled item { name itemType } }
+     }
+   }
    ```
-   The number at the end of the `id` (`gid://gitlab/Ai::Catalog::ItemConsumer/<N>`) is `UNDERTAKER_CONSUMER_ID`. If the field name differs, use the explorer's autocomplete on `aiCatalog`.
+   Take the node whose `item.name` is `Undertaker`. Its `id` is `gid://gitlab/Ai::Catalog::ItemConsumer/<N>`; set the CI/CD variable `UNDERTAKER_CONSUMER_ID` to `<N>` (the job also accepts the full GID). An empty `nodes` list means the flow is not enabled on this project yet (step 3).
+5. `DUO_FLOW_TRIGGER_TOKEN` is the owner's personal access token (scope `api`, see §2); the flow runs with the composite identity of the flow's service account and that user. `undertaker:dig` sends `POST /api/v4/ai/duo_workflows/workflows` with `project_id`, `ai_catalog_item_consumer_id`, `start_workflow: true`, `goal`, and `issue_id` = the candidate issue's **IID**.
 
 ## 4. First pipeline and live app (about 20 min)
 

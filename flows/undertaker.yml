@@ -11,6 +11,10 @@ definition:
   environment: ambient
   # The flow works through the GitLab API only. No repo clone or setup script: faster and cheaper per run.
   coding_environment: none
+  # Validated by GitLab against app/validators/json_schemas/ai_catalog/flow_v2.json (ItemVersion FLOW_SCHEMA_VERSION = 2),
+  # which is the "Flow Registry v1" schema: hence `version: v1`. That schema has additionalProperties: false on
+  # AgentComponent and does NOT allow `max_cycles` (the ai-assist runtime would accept it), so cycle limits fall back to
+  # the platform default; prompt timeouts in params.timeout still apply.
   components:
     - name: exhume
       type: AgentComponent
@@ -24,7 +28,6 @@ definition:
         - get_repository_file
         - list_repository_tree
         - gitlab_blob_search
-      max_cycles: 25
     - name: bury
       type: AgentComponent
       prompt_id: bury_prompt
@@ -41,7 +44,6 @@ definition:
         - create_commit
         - create_merge_request
         - create_issue_note
-      max_cycles: 40
     - name: coroner
       type: AgentComponent
       prompt_id: coroner_prompt
@@ -57,7 +59,6 @@ definition:
         - get_repository_file
         - create_merge_request_note
         - update_merge_request
-      max_cycles: 25
   routers:
     - from: exhume
       to: bury
