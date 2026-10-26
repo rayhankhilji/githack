@@ -73,6 +73,38 @@ export function releasePipeline(ctx: ReleaseContext, soakMinutes: number, canary
       script: ['node probation/src/cli/soak.ts --url "$CANARY_URL" --minutes "$SOAK_MINUTES"'],
       artifacts: { when: 'always', paths: ['.out/'] },
     },
+    // Cloud Logging's view of the canary: census lines for the new revision, and for the previous one over the
+    // same window as a baseline (both serve the same clients during the split). Waits out the soak plus a minute
+    // of log ingestion. allow_failure: a logging outage leaves the synthetics in charge, it is not a rollback.
+    'soak:canary-logs': {
+      ...gcp,
+      stage: 'soak',
+      needs: ['deploy:staging', 'deploy:canary'],
+      allow_failure: true,
+      script: [
+        'mkdir -p .out',
+        'SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+        'echo "Collecting census lines for $REVISION (baseline $PREVIOUS_REVISION) over the next $SOAK_MINUTES min"',
+        'sleep $(( SOAK_MINUTES * 60 + 60 ))',
+        'read_census() { gcloud logging read "resource.type=\\"cloud_run_revision\\" AND resource.labels.revision_name=\\"$1\\" AND jsonPayload.census=1 AND timestamp>=\\"$SINCE\\"" --freshness="$(( SOAK_MINUTES + 10 ))m" --limit=50000 --format=json; }',
+        'read_census "$REVISION" > .out/canary-log.json',
+        'if [ "$PREVIOUS_REVISION" != "$REVISION" ]; then read_census "$PREVIOUS_REVISION" > .out/baseline-log.json; else echo "[]" > .out/baseline-log.json; fi',
+        'echo "$(grep -c \'"census"\' .out/canary-log.json || true) canary lines, $(grep -c \'"census"\' .out/baseline-log.json || true) baseline lines"',
+      ],
+      artifacts: { when: 'always', paths: ['.out/canary-log.json', '.out/baseline-log.json'] },
+    },
+    // Judges the canary's real traffic (5xx rate, hits on deleted routes). A failure fails the soak stage, so
+    // promote is skipped and rollback:production runs. Exit 3 (no logs) is a warning, never a rollback.
+    'soak:canary-signal': {
+      ...node,
+      stage: 'soak',
+      needs: ['deploy:staging', 'soak:canary-logs'],
+      allow_failure: { exit_codes: [3] },
+      script: [
+        'node probation/src/cli/soak.ts --signal .out/canary-log.json --baseline .out/baseline-log.json',
+      ],
+      artifacts: { when: 'always', paths: ['.out/soak-signal.json'] },
+    },
     'promote:production': {
       ...gcp,
       stage: 'promote',
@@ -105,7 +137,8 @@ export function releasePipeline(ctx: ReleaseContext, soakMinutes: number, canary
       ...node,
       stage: 'settle',
       resource_group: 'ledger',
-      needs: ['rollback:production', 'soak:canary'],
+      // Scores only a failed soak (synthetics or canary signal), never a failed staging deploy or log read.
+      needs: ['rollback:production', 'soak:canary', 'soak:canary-signal'],
       when: 'on_failure',
       script: ['node probation/src/cli/settle.ts --outcome rolled_back'],
     };

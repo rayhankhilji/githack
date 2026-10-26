@@ -57,3 +57,5 @@ census:
   min_requests_in_window: 200
   # Routes the census must never propose, whatever the traffic says.
   keep: ['GET /healthz']
+  # In-progress graves with no open or merged MR after this many hours return to the candidate pool (sweep).
+  stale_hours: 6

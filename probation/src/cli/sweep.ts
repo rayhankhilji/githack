@@ -1,15 +1,52 @@
-// sweep — scheduled: score human_rejected once for every Undertaker MR closed without merge.
+// sweep — scheduled: score human_rejected once for every Undertaker MR closed without merge, then return
+// in-progress graves with no MR after census.stale_hours to the candidate pool.
+
 import { label } from '../gate.ts';
+import type { GitLab } from '../gitlab.ts';
 import { applyEvent, type Ledger, type LedgerEvent, levelChanges } from '../ledger.ts';
-import { candidateIssue, diffStats } from '../mr.ts';
-import { loadPolicy } from '../policy.ts';
-import { rejectionNote, rejectionsToScore, zonesFromLabels, zonesFromPaths } from '../sweep.ts';
+import { candidateIssue, diffStats, isUndertaker } from '../mr.ts';
+import { loadPolicy, type Policy } from '../policy.ts';
+import {
+  IN_PROGRESS,
+  rejectionNote,
+  rejectionsToScore,
+  staleHours,
+  staleInProgress,
+  staleNote,
+  zonesFromLabels,
+  zonesFromPaths,
+} from '../sweep.ts';
 import { env, gitlab, ledgerStore, main } from './common.ts';
 
 main(async () => {
   const policy = loadPolicy();
-  const [agentName, agent] = Object.entries(policy.agents)[0];
   const gl = gitlab();
+  // Rejections first: a human-closed MR marks its issue do-not-bury, which must win over a stale reset.
+  await sweepRejections(policy, gl);
+  await sweepStale(policy, gl);
+});
+
+async function sweepStale(policy: Policy, gl: GitLab) {
+  const [, agent] = Object.entries(policy.agents)[0];
+  const hours = staleHours(policy, env.STALE_HOURS);
+  const issues = await gl.listIssues(`labels=${IN_PROGRESS}&state=opened&per_page=100`);
+  if (issues.length === 0) return;
+  const query = (state: string) => `state=${state}&labels=${encodeURIComponent(agent.label)}&per_page=100`;
+  const mrs = [...(await gl.listMrs(query('opened'))), ...(await gl.listMrs(query('merged')))].filter((mr) =>
+    isUndertaker(mr, agent),
+  );
+  const stale = staleInProgress(issues, mrs, new Date(), hours);
+  for (const issue of stale) {
+    // Scoped label: candidate replaces in-progress.
+    await gl.updateIssue(issue.iid, { add_labels: 'undertaker::candidate' });
+    await gl.noteIssue(issue.iid, staleNote(hours));
+    console.log(`#${issue.iid}: in progress for over ${hours} h with no MR, returned to candidates`);
+  }
+  if (stale.length === 0) console.log(`no stale in-progress graves (${issues.length} in progress)`);
+}
+
+async function sweepRejections(policy: Policy, gl: GitLab) {
+  const [agentName, agent] = Object.entries(policy.agents)[0];
   const store = ledgerStore();
   const before: Ledger = await store.load();
   const closed = await gl.listMrs(`state=closed&labels=${encodeURIComponent(agent.label)}&per_page=100`);
@@ -75,4 +112,4 @@ main(async () => {
       labels: `probation::demotion,zone::${change.zone}`,
     });
   }
-});
+}

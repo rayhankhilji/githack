@@ -17,7 +17,7 @@ export interface Policy {
   scoring: Record<ScoringEvent, number>;
   zones: Zone[];
   soak: { minutes: number; canary_percent: number; max_5xx_rate: number; synthetics: string };
-  census: { window_days: number; min_requests_in_window: number; keep?: string[] };
+  census: { window_days: number; min_requests_in_window: number; keep?: string[]; stale_hours?: number };
 }
 
 export const LEVEL_ORDER: Level[] = ['assisted', 'supervised', 'hands_off'];

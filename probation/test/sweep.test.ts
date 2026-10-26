@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { MergeRequest } from '../src/gitlab.ts';
+import type { Issue, MergeRequest } from '../src/gitlab.ts';
 import { applyEvent, emptyLedger, type Ledger } from '../src/ledger.ts';
-import { rejectionNote, rejectionsToScore, zonesFromLabels, zonesFromPaths } from '../src/sweep.ts';
+import {
+  rejectionNote,
+  rejectionsToScore,
+  staleHours,
+  staleInProgress,
+  staleNote,
+  zonesFromLabels,
+  zonesFromPaths,
+} from '../src/sweep.ts';
 import { ledgerWith, policy } from './helpers.ts';
 
 const agent = policy.agents.undertaker;
@@ -94,5 +102,55 @@ describe('human-rejection sweep', () => {
     expect(rejectionNote(['legacy', 'routes'], policy.scoring.human_rejected)).toBe(
       '⚖️ Closed without merge: −20 in zone(s) `legacy`, `routes`.',
     );
+  });
+});
+
+describe('stale in-progress graves', () => {
+  const now = new Date('2026-10-26T12:00:00Z');
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+  const issue = (iid: number, updatedHoursAgo: number | undefined, over: Partial<Issue> = {}) =>
+    ({
+      iid,
+      title: `🪦 grave ${iid}`,
+      web_url: `https://gitlab.example/issues/${iid}`,
+      description: '',
+      labels: ['undertaker::in-progress', 'zone::legacy'],
+      state: 'opened',
+      ...over,
+      ...(updatedHoursAgo === undefined ? {} : { updated_at: hoursAgo(updatedHoursAgo) }),
+    }) as Issue;
+  const closing = (iid: number, state: string) =>
+    mr(50 + iid, { state, description: `Here lies it.\n\nCloses #${iid}` });
+
+  it('returns in-progress issues with no open or merged MR after staleHours', () => {
+    const issues = [issue(1, 7), issue(2, 5), issue(3, 30), issue(4, 30), issue(5, 30)];
+    const mrs = [closing(3, 'opened'), closing(4, 'merged'), closing(5, 'closed')];
+    expect(staleInProgress(issues, mrs, now, 6).map((i) => i.iid)).toEqual([1, 5]);
+  });
+
+  it('only counts the closing keyword, not other mentions', () => {
+    const cites = mr(60, { state: 'opened', description: 'The vendor died with #1.' });
+    expect(staleInProgress([issue(1, 7)], [cites], now, 6).map((i) => i.iid)).toEqual([1]);
+  });
+
+  it('ignores other lifecycle labels, closed issues and issues without updated_at', () => {
+    const issues = [
+      issue(1, 30, { labels: ['undertaker::candidate'] }),
+      issue(2, 30, { labels: ['undertaker::do-not-bury'] }),
+      issue(3, 30, { state: 'closed' }),
+      issue(4, undefined),
+      { ...issue(5, undefined), updated_at: 'not a date' } as Issue,
+    ];
+    expect(staleInProgress(issues, [], now, 6)).toEqual([]);
+  });
+
+  it('reads stale hours from STALE_HOURS, then policy census.stale_hours, then 6', () => {
+    expect(staleHours(policy)).toBe(6);
+    expect(staleHours({ ...policy, census: { ...policy.census, stale_hours: 12 } } as typeof policy)).toBe(
+      12,
+    );
+    expect(staleHours(policy, '2')).toBe(2);
+    expect(staleHours(policy, 'nope')).toBe(6);
+    expect(staleNote(6)).toBe('♻️ No Undertaker MR after 6 h; returned to the candidate pool.');
   });
 });

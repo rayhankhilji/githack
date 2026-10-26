@@ -170,10 +170,10 @@ Errors: any non-2xx throws `GitLab <METHOD> <path> → <status>: <body>`. 429 an
       1. `deploy:staging` (0% traffic, tag `rc-<sha>`, dotenv URLs);
       2. `approve:production`;
       3. `deploy:canary` (10%);
-      4. `soak:canary` (synthetics every 15 s for `SOAK_MINUTES`);
+      4. `soak:canary` (synthetics every 15 s for `SOAK_MINUTES`), in parallel with `soak:canary-logs` (after the soak window, `gcloud logging read` of census lines for `$REVISION`, plus `$PREVIOUS_REVISION` as a same-window baseline) → `soak:canary-signal`. The signal fails on a 5xx rate above `soak.max_5xx_rate` (≥ 20 requests) or on unmatched 404s beyond the baseline rate plus a 3σ allowance (a client hitting a deleted route). A logging outage is a warning, never a rollback;
       5. `promote:production` or `rollback:production`;
       6. `settle:survived` or `settle:rolled-back` (ledger write, promotion or demotion issue, revert commit, candidate close or do-not-bury).
-5. **Govern (F-04, F-07).** `govern:baseline` stores security fingerprints, `govern:release-notes` creates a GitLab Release, and `pages` renders the board.
+5. **Govern (F-04, F-07).** `govern:baseline` stores security fingerprints, `govern:release-notes` creates a GitLab Release, and `pages` renders the board. On the schedule, `probation:sweep` scores human rejections and returns `undertaker::in-progress` issues that no open or merged MR closes after `census.stale_hours` (6 h) to `undertaker::candidate`.
 
 ## 7. Frontend Architecture
 

@@ -372,6 +372,55 @@ describe('the Probation story, end to end', TIMEOUT, () => {
     expect(ledger().scores.undertaker).toMatchObject({ legacy: 0, flags: 0 });
   });
 
+  it('sweep returns graves stuck in progress with no MR to the candidate pool', async () => {
+    const ago = (h: number) => ({ updated_at: new Date(Date.now() - h * 3_600_000).toISOString() });
+    const inProgress = ['undertaker::in-progress', 'zone::legacy', 'kind::route'];
+    const stuck = Object.assign(createIssue(fake.state, { title: '🪦 stuck', labels: inProgress }), ago(7));
+    const fresh = Object.assign(createIssue(fake.state, { title: '🪦 fresh', labels: inProgress }), ago(1));
+    const dug = Object.assign(createIssue(fake.state, { title: '🪦 dug', labels: inProgress }), ago(30));
+    createMr(fake.state, {
+      title: 'Draft: Bury dug',
+      labels: ['undertaker'],
+      description: `Here lies it.\n\nCloses #${dug.iid}`,
+      diffs: [edited('app/src/legacy/v1.ts', 1)],
+    });
+
+    const r = await ok(cli(fake, ws, 'sweep', [], { CI_PIPELINE_ID: '302' }));
+    expect(r.stdout).toContain(`#${stuck.iid}: in progress for over 6 h`);
+    expect(stuck.labels).toContain('undertaker::candidate');
+    expect(stuck.labels).not.toContain('undertaker::in-progress');
+    expect(fake.state.notes.at(-1)).toEqual({
+      noteable: 'issue',
+      iid: stuck.iid,
+      body: '♻️ No Undertaker MR after 6 h; returned to the candidate pool.',
+    });
+    expect(fresh.labels).toContain('undertaker::in-progress');
+    expect(dug.labels).toContain('undertaker::in-progress');
+  });
+
+  it('soak --signal fails the canary on a hit to a deleted route', async () => {
+    const live = (n: number, route: string) =>
+      Array.from({ length: n }, () => ({ jsonPayload: { census: 1, method: 'GET', route, status: 200 } }));
+    const canary = [
+      ...live(40, '/'),
+      { jsonPayload: { census: 1, method: 'GET', route: 'unmatched', status: 404 } },
+    ];
+    writeFileSync(join(ws, '.out/canary-log.json'), JSON.stringify(canary));
+    writeFileSync(join(ws, '.out/baseline-log.json'), JSON.stringify(live(300, '/api/v1/export.csv')));
+    const args = ['--signal', '.out/canary-log.json', '--baseline', '.out/baseline-log.json'];
+    const r = await cli(fake, ws, 'soak', args, { REVISION: 'tallybook-00004-rc' });
+    expect(r.code).toBe(1);
+    expect(r.stdout).toContain('soak signal for tallybook-00004-rc: FAIL');
+    expect(r.stderr).toContain('hit a route that no longer exists');
+    expect(JSON.parse(readFileSync(join(ws, '.out/soak-signal.json'), 'utf8'))).toMatchObject({
+      requests: 41,
+      deletedRouteHits: 1,
+      verdict: 'fail',
+    });
+    const missing = await cli(fake, ws, 'soak', ['--signal', '.out/nope.json']);
+    expect(missing.code).toBe(3);
+  });
+
   it('board renders the graveyard from the ledger branch', async () => {
     const out = join(ws, 'public/index.html');
     await ok(cli(fake, ws, 'board', ['--out', out]));
