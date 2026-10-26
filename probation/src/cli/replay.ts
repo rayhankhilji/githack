@@ -23,6 +23,8 @@ main(async () => {
   const failures: string[] = [];
 
   for (const [route, hits] of Object.entries(traffic)) {
+    // Fastify answers HEAD for every GET route implicitly, so HEAD traffic is covered by the GET check.
+    if (route.startsWith('HEAD ')) continue;
     if (hits > 0 && !route.endsWith(' unmatched') && !routes.includes(route)) {
       failures.push(`deleted a live route: ${route} served ${hits} request(s) in the census window`);
     }

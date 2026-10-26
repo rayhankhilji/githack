@@ -76,13 +76,13 @@ node probation/src/cli/release-plan.ts && cat .out/release.yml
 | F-06.AC1–AC2 | T-F06-AC1, T-F06-AC2 | unit | sci.test.ts |
 | F-07.AC1 | T-F07-AC1 | unit | board.test.ts |
 | F-08 | T-F08-* | integration | app/test/server.test.ts (9 tests) |
-| F-09.AC1 | T-F09-AC1 | CLI smoke | `node probation/src/cli/start-flow.ts --dry-run` in CI (needs token) |
+| F-09.AC1 | T-F09-AC1 | unit | dig.test.ts |
 | F-09.AC2 | T-F09-AC2 | pipeline E2E | RUNBOOK §5 |
-| F-10.AC1 | T-F10-AC1 | backlog | not yet implemented (P1) |
+| F-10.AC1 | T-F10-AC1 | unit | sweep.test.ts |
 
 ## 7. Expected Results
 
-- `npm run check`: Biome 0 errors, tsc 0 errors, Vitest **40 passed**.
+- `npm run check`: Biome 0 errors, tsc 0 errors, Vitest **56 passed**.
 - `npm run demo:mock`: five acts ending with the lines below, and `.out/board.html` written.
   - `legacy -40 → 0 · Hands-off → Assisted` (act 4);
   - `Assisted → Supervised` (act 5).

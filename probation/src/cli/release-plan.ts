@@ -96,12 +96,15 @@ export function releasePipeline(ctx: ReleaseContext, soakMinutes: number, canary
     jobs['settle:survived'] = {
       ...node,
       stage: 'settle',
+      // Ledger writes are read-modify-write; one writer at a time across all pipelines.
+      resource_group: 'ledger',
       needs: ['promote:production', { pipeline: '$PARENT_PIPELINE_ID', job: 'measure:sci' }],
       script: ['node probation/src/cli/settle.ts --outcome survived'],
     };
     jobs['settle:rolled-back'] = {
       ...node,
       stage: 'settle',
+      resource_group: 'ledger',
       needs: ['rollback:production', 'soak:canary'],
       when: 'on_failure',
       script: ['node probation/src/cli/settle.ts --outcome rolled_back'],

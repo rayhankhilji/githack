@@ -230,7 +230,7 @@ The point of the project: "code generation is solved, so what happens after?" Co
 |---|---|
 | Flow YAML schema differs from the docs (v1 vs flow_v2) | Paste it through the UI editor first, which validates; fix keys there and copy back |
 | API-started flows refused (composite identity flag) | Fallback: assign trigger on the candidate issue |
-| GitLab Credits run out mid-demo | `npm run demo:mock` reproduces the full arc offline; real runs are capped by `max_cycles` |
+| GitLab Credits run out mid-demo | `npm run demo:mock` reproduces the full arc offline; real runs handle one candidate each |
 | Census misses periodic clients | Soak synthetics are independent of the census; the rollback is the designed safety net (and the demo's climax) |
 
 ## 11. Open Questions

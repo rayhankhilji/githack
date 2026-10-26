@@ -47,7 +47,8 @@ main(async () => {
   });
 
   if (decision.verdict === 'block') {
-    if (ledger.security && findings.introduced.length) {
+    const alreadyScored = ledger.events.some((e) => e.event === 'security_finding' && e.ref.mr === iid);
+    if (ledger.security && findings.introduced.length && !alreadyScored) {
       const scored = applyEvent(ledger, policy, {
         agent: agentName,
         zones: decision.zones.map((z) => z.zone),

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { countLines, isUndertaker } from '../src/mr.ts';
 
 describe('mr helpers', () => {
-  it('counts unified diff lines, ignoring headers', () => {
-    expect(countLines('--- a/x\n+++ b/x\n@@ -1,3 +1,1 @@\n-a\n-b\n+c\n ctx')).toEqual({
+  it('counts GitLab diff lines (the API diff field has no file headers)', () => {
+    expect(countLines('@@ -1,3 +1,1 @@\n-a\n-b\n+c\n ctx')).toEqual({
       added: 1,
       removed: 2,
     });

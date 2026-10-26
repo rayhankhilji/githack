@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { label } from '../gate.ts';
 import { applyEvent, type Grave, type Ledger, levelChanges } from '../ledger.ts';
-import { diffStats } from '../mr.ts';
+import { candidateIssue, diffStats } from '../mr.ts';
 import { loadPolicy, type ScoringEvent } from '../policy.ts';
 import type { SciResult } from '../sci.ts';
 import { arg, env, gitlab, hasFlag, ledgerStore, main } from './common.ts';
@@ -102,15 +102,11 @@ main(async () => {
       labels: `probation::${promoted ? 'promotion' : 'demotion'},zone::${change.zone}`,
     });
   }
-  if (outcome === 'rolled_back' && env.CI_COMMIT_SHA) {
-    // Production is already back on the previous revision; now take the code back too.
-    const revert = await gl.revertCommit(env.CI_COMMIT_SHA, env.CI_DEFAULT_BRANCH ?? 'main');
-    console.log(`reverted ${env.CI_COMMIT_SHORT_SHA} as ${revert.id}`);
-  }
   // Close or flag the candidate issue that started this MR.
-  const issueRef = /#(\d+)/.exec(mr.description)?.[1];
+  // Only the closing reference counts: the epitaph and quoted evidence may mention other issues.
+  const issueRef = candidateIssue(mr.description);
   if (issueRef) {
-    const issueIid = Number(issueRef);
+    const issueIid = issueRef;
     if (outcome === 'survived')
       await gl.updateIssue(issueIid, { state_event: 'close', remove_labels: 'undertaker::in-progress' });
     else {
@@ -123,5 +119,11 @@ main(async () => {
         `🚨 Exhumed: burying this broke a real client during the canary soak (see !${iid}). Marked do-not-bury; the census will skip it.`,
       );
     }
+  }
+  // Revert last: a revert conflict must not stop the candidate from being marked do-not-bury.
+  if (outcome === 'rolled_back' && env.CI_COMMIT_SHA) {
+    // Production is already back on the previous revision; now take the code back too.
+    const revert = await gl.revertCommit(env.CI_COMMIT_SHA, env.CI_DEFAULT_BRANCH ?? 'main');
+    console.log(`reverted ${env.CI_COMMIT_SHORT_SHA} as ${revert.id}`);
   }
 });

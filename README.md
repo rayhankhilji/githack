@@ -43,7 +43,7 @@ All nine DevSecOps stages are covered: plan, create, verify, secure, package, re
 
 ```bash
 npm run setup          # Node ≥ 22.18
-npm run check          # lint + typecheck + 40 tests
+npm run check          # lint + typecheck + 56 tests
 npm run dev            # Tallybook on http://localhost:8080
 npm run demo:mock      # the whole Probation story offline → .out/board.html
 ```

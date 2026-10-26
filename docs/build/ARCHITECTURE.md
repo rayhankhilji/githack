@@ -217,7 +217,7 @@ flowchart LR
   - bury can create branches, commits and MRs but has no merge or pipeline tools;
   - coroner can only note and label.
   - `coding_environment: none` means no clone and no shell.
-- **Limits:** `max_cycles` is 25 / 40 / 25. Prompt timeouts are 180 / 300 / 240 s.
+- **Limits:** prompt timeouts are 180 / 300 / 240 s. `max_cycles` is supported by the runtime but rejected by GitLab's AI Catalog validator (`flow_v2.json`), so cycles use the platform default; cost is bounded by one candidate per run.
 - **Injection defence:** issue, MR and repo content is declared as data in every system prompt. The gate is deterministic, so even a hijacked flow can't merge, deploy or touch forbidden zones.
 - **Evals:** see EVAL_GUARDRAILS §7.
 

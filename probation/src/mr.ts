@@ -5,8 +5,9 @@ export function countLines(diff: string) {
   let added = 0;
   let removed = 0;
   for (const line of diff.split('\n')) {
-    if (line.startsWith('+') && !line.startsWith('+++')) added++;
-    else if (line.startsWith('-') && !line.startsWith('---')) removed++;
+    // GitLab's diff field has no ---/+++ file headers, so every +/- line is content.
+    if (line.startsWith('+')) added++;
+    else if (line.startsWith('-')) removed++;
   }
   return { added, removed };
 }
@@ -34,5 +35,17 @@ export function gateComment(d: GateDecision, removedFindings: number): string {
 }
 
 export function diffStats(diffs: MrDiff[]) {
-  return diffs.map((d) => ({ path: d.new_path, deleted: d.deleted_file, ...countLines(d.diff) }));
+  return diffs.flatMap((d) => {
+    const stats = { path: d.new_path, deleted: d.deleted_file, ...countLines(d.diff) };
+    // A rename also touches its old location, so moving a file out of a forbidden zone is still caught.
+    return d.old_path && d.old_path !== d.new_path
+      ? [stats, { path: d.old_path, deleted: true, added: 0, removed: 0 }]
+      : [stats];
+  });
+}
+
+// The candidate issue an Undertaker MR closes. Only the closing keyword counts: epitaphs may cite other issues.
+export function candidateIssue(description: string): number | undefined {
+  const iid = /\b(?:closes|fixes|resolves)\s+#(\d+)/i.exec(description)?.[1];
+  return iid ? Number(iid) : undefined;
 }

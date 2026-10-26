@@ -59,6 +59,25 @@
   - CI YAML is not yet validated against GitLab's linter.
 - **Next:** P0.T8 (Rayhan).
 
+### 2026-10-26 — Session 2 (parallel verification)
+- **Done:**
+  - CI validated against GitLab's `ci.json` schema; fixed MR security jobs, release tags, ledger exclusion, concurrent releases, and a bogus rollback on a staging failure.
+  - Flow validated against `flow_v2.json` (dropped `max_cycles`); Flows API and the GraphQL consumer-id query confirmed from source.
+  - GCP deploy, auth and bootstrap hardened; grid intensity verified at 432 gCO₂e/kWh for us-central1 (2025).
+  - F-10 sweep implemented and scheduled.
+  - Independent review fixed:
+    - `audit.jsonl` create/update crash;
+    - silent empty-ledger overwrite;
+    - HEAD traffic failing replay;
+    - diff lines starting with `++`/`--`;
+    - renames bypassing forbidden zones;
+    - wrong issue matched in settle;
+    - do-not-bury key regex;
+    - repeat security scoring;
+    - concurrent ledger writers (`resource_group: ledger`).
+- **Tests:** 56 passed; docs validator 0 errors.
+- **Next:** P0.T8 (Rayhan).
+
 ## Completed Phases
 
 None yet.

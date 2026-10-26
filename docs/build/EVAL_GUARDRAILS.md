@@ -49,7 +49,7 @@
 
 | ID | Budget | Enforcement |
 |---|---|---|
-| G-COST-01 | ≤ 15 GitLab Credits per Undertaker run | `max_cycles` 25 / 40 / 25; one candidate per run |
+| G-COST-01 | ≤ 15 GitLab Credits per Undertaker run | One candidate per run; prompt timeouts 180 / 300 / 240 s; check the GitLab Credits dashboard after each run |
 | G-COST-02 | ≤ 10 real flow runs before submission (of 500 monthly credits) | RUNBOOK §5 demo plan; `demo:mock` for rehearsals |
 | G-COST-03 | MR pipeline ≤ 6 minutes; release ≤ 10 minutes | Soak minutes in `policy.yml`; `SCI_DURATION` 10 s |
 | G-COST-04 | Cloud Run min instances 0, max 3, 256Mi | `ci/deploy.sh` flags |

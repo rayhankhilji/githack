@@ -121,6 +121,7 @@ measure:sci:
 
 # ── gate (merge requests only) ──────────────────────────────────────────
 probation:gate:
+  resource_group: ledger
   extends: .node
   stage: gate
   rules:
@@ -156,6 +157,7 @@ release:run:
 
 # ── govern ──────────────────────────────────────────────────────────────
 govern:baseline:
+  resource_group: ledger
   extends: [.node, .main-only]
   stage: govern
   needs: [release:run, secure:npm-audit]
@@ -206,6 +208,7 @@ undertaker:dig:
     - node probation/src/cli/start-flow.ts
 
 probation:sweep:
+  resource_group: ledger
   extends: [.node, .schedule-only]
   stage: gate
   needs: [census:file]

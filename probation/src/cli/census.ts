@@ -39,7 +39,7 @@ main(async () => {
   const exclude = new Set(
     known
       .filter((i) => i.labels.includes('undertaker::do-not-bury'))
-      .map((i) => /undertaker:key=(\S+) -->/.exec(i.description)?.[1])
+      .map((i) => /undertaker:key=(.+?) -->/.exec(i.description)?.[1])
       .filter((k): k is string => Boolean(k)),
   );
 

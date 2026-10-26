@@ -37,14 +37,15 @@ export class GitLabLedgerStore implements LedgerStore {
   }
 
   async load(): Promise<Ledger> {
-    const text = await this.gitlab.getFile('ledger.json', LEDGER_BRANCH).catch(() => undefined);
+    // getFile maps 404 to undefined; any other error must fail the job, never be read as an empty ledger.
+    const text = await this.gitlab.getFile('ledger.json', LEDGER_BRANCH);
     return text ? (JSON.parse(text) as Ledger) : emptyLedger();
   }
 
   async save(ledger: Ledger, written: LedgerEvent[], message: string): Promise<void> {
     const exists = await this.gitlab.branchExists(LEDGER_BRANCH);
-    const audit = (await this.gitlab.getFile('audit.jsonl', LEDGER_BRANCH)) ?? '';
-    const auditNext = audit + written.map((e) => `${JSON.stringify(e)}\n`).join('');
+    const auditFile = await this.gitlab.getFile('audit.jsonl', LEDGER_BRANCH);
+    const auditNext = (auditFile ?? '') + written.map((e) => `${JSON.stringify(e)}\n`).join('');
     const hasLedger = exists && (await this.gitlab.getFile('ledger.json', LEDGER_BRANCH)) !== undefined;
     await this.gitlab.commit({
       branch: LEDGER_BRANCH,
@@ -57,7 +58,11 @@ export class GitLabLedgerStore implements LedgerStore {
           file_path: 'ledger.json',
           content: `${JSON.stringify(ledger, null, 2)}\n`,
         },
-        { action: audit ? 'update' : 'create', file_path: 'audit.jsonl', content: auditNext },
+        {
+          action: auditFile !== undefined ? 'update' : 'create',
+          file_path: 'audit.jsonl',
+          content: auditNext,
+        },
       ],
     });
   }

@@ -32,7 +32,7 @@ Code generation is solved; code *deletion* isn't. Nobody lets an agent remove co
 |---|---|
 | Plan | `census:file` turns production logs into labelled candidate issues (zone, kind, evidence) |
 | Create | Undertaker flow (custom Duo flow, 3 agent components, API-only tools) opens the deletion MR |
-| Verify | Lint, typecheck, 40 tests, plus a **traffic replay**: every route that served production traffic must still exist |
+| Verify | Lint, typecheck, 56 tests, plus a **traffic replay**: every route that served production traffic must still exist |
 | Secure | GitLab SAST, Secret Detection and Dependency Scanning templates, plus an npm-audit findings diff against main's baseline in the gate |
 | Package | Cloud Build → Artifact Registry image per commit |
 | Release | A dynamic child pipeline shaped by the gate's verdict: staging revision → (approval) → 10% canary → soak → promote or roll back; GitLab Release |

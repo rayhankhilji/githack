@@ -87,7 +87,6 @@ The deadline is **2026-10-27 13:00 UTC**. Each phase ends with something deploya
 
 ## Later / Backlog
 
-- F-10 Human-rejection sweep (P1).
 - Multi-agent board (several agents on probation side by side).
 - Cloud Monitoring alert → issue (incident-driven census).
 - Error-rate soak signal from Cloud Logging in addition to synthetics.
@@ -105,4 +104,4 @@ The deadline is **2026-10-27 13:00 UTC**. Each phase ends with something deploya
 | F-07 | P0, P3 | P0.T3, P3.T2 |
 | F-08 | P0 | P0.T2 |
 | F-09 | P1 | P1.T2 |
-| F-10 | Backlog | — |
+| F-10 | P0 | implemented (sweep.ts), scheduled as probation:sweep |
