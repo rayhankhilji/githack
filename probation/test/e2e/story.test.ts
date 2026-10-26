@@ -403,7 +403,10 @@ describe('the Probation story, end to end', TIMEOUT, () => {
       Array.from({ length: n }, () => ({ jsonPayload: { census: 1, method: 'GET', route, status: 200 } }));
     const canary = [
       ...live(40, '/'),
-      { jsonPayload: { census: 1, method: 'GET', route: 'unmatched', status: 404 } },
+      // Four unmatched 404s: one above the quiet-soak noise floor of three.
+      ...Array.from({ length: 4 }, () => ({
+        jsonPayload: { census: 1, method: 'GET', route: 'unmatched', status: 404 },
+      })),
     ];
     writeFileSync(join(ws, '.out/canary-log.json'), JSON.stringify(canary));
     writeFileSync(join(ws, '.out/baseline-log.json'), JSON.stringify(live(300, '/api/v1/export.csv')));
@@ -413,7 +416,7 @@ describe('the Probation story, end to end', TIMEOUT, () => {
     expect(r.stdout).toContain('soak signal for tallybook-00004-rc: FAIL');
     expect(r.stderr).toContain('hit a route that no longer exists');
     expect(JSON.parse(readFileSync(join(ws, '.out/soak-signal.json'), 'utf8'))).toMatchObject({
-      requests: 41,
+      requests: 44,
       deletedRouteHits: 1,
       verdict: 'fail',
     });

@@ -56,6 +56,15 @@ function signal(): void {
     process.exitCode = SIGNAL_UNAVAILABLE;
     return;
   }
+  // Without the previous revision's view, scanner 404s can't be excused: warn rather than risk a false rollback.
+  const hasPrevious = Boolean(env.PREVIOUS_REVISION) && env.PREVIOUS_REVISION !== env.REVISION;
+  if (baselinePath && hasPrevious && !existsSync(baselinePath)) {
+    console.log(
+      `⚠ soak signal: ${baselinePath} is missing (baseline read failed?); judged on synthetics only`,
+    );
+    process.exitCode = SIGNAL_UNAVAILABLE;
+    return;
+  }
   const canary = parseCensusLog(readFileSync(logPath, 'utf8'));
   const baseline =
     baselinePath && existsSync(baselinePath) ? parseCensusLog(readFileSync(baselinePath, 'utf8')) : [];

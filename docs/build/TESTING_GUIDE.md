@@ -87,7 +87,7 @@ node probation/src/cli/release-plan.ts && cat .out/release.yml
 
 ## 7. Expected Results
 
-- `npm run check`: Biome 0 errors, tsc 0 errors, Vitest **112 passed**.
+- `npm run check`: Biome 0 errors, tsc 0 errors, Vitest **114 passed**.
 - `npm run demo:mock`: five acts ending with the lines below, and `.out/board.html` written.
   - `legacy -40 → 0 · Hands-off → Assisted` (act 4);
   - `Assisted → Supervised` (act 5).

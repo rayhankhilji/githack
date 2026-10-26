@@ -87,8 +87,9 @@ export function releasePipeline(ctx: ReleaseContext, soakMinutes: number, canary
         'echo "Collecting census lines for $REVISION (baseline $PREVIOUS_REVISION) over the next $SOAK_MINUTES min"',
         'sleep $(( SOAK_MINUTES * 60 + 60 ))',
         'read_census() { gcloud logging read "resource.type=\\"cloud_run_revision\\" AND resource.labels.revision_name=\\"$1\\" AND jsonPayload.census=1 AND timestamp>=\\"$SINCE\\"" --freshness="$(( SOAK_MINUTES + 10 ))m" --limit=50000 --format=json; }',
-        'read_census "$REVISION" > .out/canary-log.json',
-        'if [ "$PREVIOUS_REVISION" != "$REVISION" ]; then read_census "$PREVIOUS_REVISION" > .out/baseline-log.json; else echo "[]" > .out/baseline-log.json; fi',
+        // Write through .tmp so a failed read leaves no file (the signal then warns) instead of an empty one.
+        'read_census "$REVISION" > .out/canary-log.json.tmp && mv .out/canary-log.json.tmp .out/canary-log.json',
+        'if [ "$PREVIOUS_REVISION" != "$REVISION" ]; then read_census "$PREVIOUS_REVISION" > .out/baseline-log.json.tmp && mv .out/baseline-log.json.tmp .out/baseline-log.json; else echo "[]" > .out/baseline-log.json; fi',
         'echo "$(grep -c \'"census"\' .out/canary-log.json || true) canary lines, $(grep -c \'"census"\' .out/baseline-log.json || true) baseline lines"',
       ],
       artifacts: { when: 'always', paths: ['.out/canary-log.json', '.out/baseline-log.json'] },
@@ -110,6 +111,19 @@ export function releasePipeline(ctx: ReleaseContext, soakMinutes: number, canary
       stage: 'promote',
       environment: { name: 'production', url: '$PRODUCTION_URL' },
       script: ['bash ci/deploy.sh promote'],
+    },
+    // Fast path: the synthetics failed, so take traffic off the canary now instead of waiting for the log read
+    // to finish the soak stage. rollback:production still runs afterwards; update-traffic is idempotent.
+    'rollback:soak': {
+      ...gcp,
+      stage: 'promote',
+      needs: ['deploy:staging', 'soak:canary'],
+      when: 'on_failure',
+      environment: { name: 'production', url: '$PRODUCTION_URL' },
+      script: [
+        'if [ -z "$(printenv PREVIOUS_REVISION)" ]; then echo "deploy:staging moved no traffic; nothing to roll back"; exit 0; fi',
+        'bash ci/deploy.sh rollback',
+      ],
     },
     // Runs when any earlier stage failed (staging, canary or soak). If deploy:staging failed, its dotenv
     // never uploaded and no traffic moved, so there is nothing to roll back.

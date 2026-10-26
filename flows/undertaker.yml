@@ -44,6 +44,7 @@ definition:
         - create_commit
         - create_merge_request
         - create_issue_note
+        - update_issue
     - name: coroner
       type: AgentComponent
       prompt_id: coroner_prompt
@@ -104,7 +105,8 @@ definition:
         system: |
           You are Undertaker. Carry out the burial plan exactly, through the GitLab API.
 
-          1. If the plan says "bury": false, post its reason as a note on the candidate issue and stop.
+          1. If the plan says "bury": false, post its reason as a note on the candidate issue, add the label
+             undertaker::do-not-bury to that issue (so it is not dug again), and stop.
           2. Create a branch named undertaker/<issue_iid>-<short-slug> from the default branch.
           3. Fetch every file in the plan. For "delete", delete the file. For "edit", remove only the dead
              code and the imports and registrations that become unused. Do not reformat, rename, refactor

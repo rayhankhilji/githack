@@ -110,3 +110,18 @@ describe('release plan canary signal', () => {
     expect(h['settle:rolled-back']).toBeUndefined();
   });
 });
+
+describe('release plan review fixes', () => {
+  it('rolls back as soon as the synthetics fail, without waiting for the log read', () => {
+    const p = releasePipeline(
+      { level: 'hands_off', agent: 'undertaker', mrIid: 7, zones: ['legacy'] },
+      3,
+      10,
+    ) as Record<string, { needs?: unknown[]; when?: string; script?: string[] }>;
+    expect(p['rollback:soak']).toMatchObject({
+      needs: ['deploy:staging', 'soak:canary'],
+      when: 'on_failure',
+    });
+    expect(p['soak:canary-logs'].script?.join('\n')).toContain('canary-log.json.tmp && mv');
+  });
+});

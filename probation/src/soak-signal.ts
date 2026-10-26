@@ -32,7 +32,7 @@ const pct = (n: number) => `${(n * 100).toFixed(2)}%`;
 // unmatched at the same rate on each. A path whose route this release deleted 404s only on the canary.
 // So the canary's unmatched 404s in excess of the previous revision's rate (plus a 3σ Poisson allowance
 // for noise) are hits on deleted routes, and any such hit fails the soak: a real client lost its endpoint.
-// With no baseline traffic (first deploy) nothing is excused and every unmatched 404 counts.
+// With no baseline traffic (first deploy) only the noise floor (3 unmatched 404s) is excused.
 export function soakSignal(
   canary: CensusLine[],
   baseline: CensusLine[],
@@ -46,7 +46,9 @@ export function soakSignal(
   const baselineRequests = baseline.length;
   const baselineUnmatched = baseline.filter(isUnmatched).length;
   const expected = baselineRequests ? (baselineUnmatched / baselineRequests) * requests : 0;
-  const unmatchedAllowed = expected > 0 ? Math.ceil(expected + 3 * Math.sqrt(expected)) : 0;
+  // 3σ allowance with a floor of σ = 1: a browser's /favicon.ico or one stray scanner hit during a quiet soak
+  // must not roll back a good release. Real deleted-route use is caught by the synthetics either way.
+  const unmatchedAllowed = Math.ceil(expected + 3 * Math.sqrt(Math.max(expected, 1)));
   const deletedRouteHits = Math.max(0, unmatched - unmatchedAllowed);
 
   const reasons: string[] = [];

@@ -53,15 +53,22 @@ describe('soak signal (canary Cloud Logging census lines)', () => {
 
   it('fails on a request to a route that no longer exists', () => {
     // The previous revision matched the partner's export; the canary answers it with an unmatched 404.
-    const canary = [...lines(30), line('unmatched', 404)];
+    const canary = [...lines(30), ...lines(4, 'unmatched', 404)];
     const baseline = [...lines(270), ...lines(9, '/api/v1/export.csv')];
     const s = soakSignal(canary, baseline, 0.01);
-    expect(s).toMatchObject({ unmatched: 1, unmatchedAllowed: 0, deletedRouteHits: 1, verdict: 'fail' });
+    expect(s).toMatchObject({ unmatched: 4, unmatchedAllowed: 3, deletedRouteHits: 1, verdict: 'fail' });
     expect(s.reasons[1]).toContain('hit a route that no longer exists');
   });
 
-  it('counts a deleted-route hit even below the minimum sample', () => {
-    expect(soakSignal([line('unmatched', 404)], [], 0.01).verdict).toBe('fail');
+  it('counts deleted-route hits even below the minimum sample', () => {
+    expect(soakSignal(lines(4, 'unmatched', 404), [], 0.01).verdict).toBe('fail');
+  });
+
+  it('one stray 404 (a browser favicon) in a quiet soak does not fail a good release', () => {
+    expect(soakSignal([...lines(5), line('unmatched', 404)], [], 0.01)).toMatchObject({
+      deletedRouteHits: 0,
+      verdict: 'pass',
+    });
   });
 
   it('excuses unmatched 404s the previous revision saw at the same rate (scanners)', () => {

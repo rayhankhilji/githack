@@ -150,6 +150,7 @@ Delete `k.json` afterwards.
 | Gate says "not from undertaker" | The MR is missing the `undertaker` label. Add it, or fix the flow's bury prompt |
 | Census finds 0 candidates | Fewer than 200 census lines in the window; run `scripts/traffic.ts` again or raise `CENSUS_FRESHNESS` |
 | Pages shows an empty board | No ledger yet (it appears after the first settle). An empty board is expected before act 1 |
+| `npm run doctor` says a variable is missing that you set at group level | The doctor reads project-level variables only. Group-level values work in CI; treat that line as a warning |
 | CI lint error on a template | Remove that `include:` line. The gate doesn't depend on template jobs |
 
 ## 8. Extra Duo features
