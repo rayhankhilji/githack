@@ -79,12 +79,17 @@ export function releasePipeline(ctx: ReleaseContext, soakMinutes: number, canary
       environment: { name: 'production', url: '$PRODUCTION_URL' },
       script: ['bash ci/deploy.sh promote'],
     },
+    // Runs when any earlier stage failed (staging, canary or soak). If deploy:staging failed, its dotenv
+    // never uploaded and no traffic moved, so there is nothing to roll back.
     'rollback:production': {
       ...gcp,
       stage: 'promote',
       when: 'on_failure',
       environment: { name: 'production', url: '$PRODUCTION_URL' },
-      script: ['bash ci/deploy.sh rollback'],
+      script: [
+        'if [ -z "$(printenv PREVIOUS_REVISION)" ]; then echo "deploy:staging moved no traffic; nothing to roll back"; exit 0; fi',
+        'bash ci/deploy.sh rollback',
+      ],
     },
   };
   if (isAgent) {
@@ -126,7 +131,11 @@ main(async () => {
   }
   writeOut(
     '.out/release.yml',
-    stringify(releasePipeline(ctx, policy.soak.minutes, policy.soak.canary_percent)),
+    // No YAML anchors and no line folding, so the child pipeline reads plainly in the GitLab UI.
+    stringify(releasePipeline(ctx, policy.soak.minutes, policy.soak.canary_percent), {
+      aliasDuplicateObjects: false,
+      lineWidth: 0,
+    }),
   );
   console.log(
     `release plan: level=${ctx.level}${ctx.mrIid ? ` mr=!${ctx.mrIid} zones=${ctx.zones.join('+')}` : ''}`,

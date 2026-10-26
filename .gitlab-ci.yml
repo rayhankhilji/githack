@@ -6,14 +6,15 @@
 
 workflow:
   rules:
-    - if: $CI_COMMIT_BRANCH == "ledger"
+    # The census bot commits traffic.json to `ledger`; never build it (branch or MR).
+    - if: $CI_COMMIT_REF_NAME == "ledger"
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - if: $CI_COMMIT_TAG
+    # No tag pipelines: govern:release-notes creates a release-N tag on every release.
 
 stages: [verify, test, package, measure, gate, release, govern]
 
@@ -23,6 +24,9 @@ variables:
   CLOUD_RUN_SERVICE: tallybook
   SAST_EXCLUDED_PATHS: "probation/test, app/test, node_modules"
   SECURE_LOG_LEVEL: info
+  # The security templates only run in MR pipelines when this is set (otherwise branch pipelines only,
+  # which the workflow suppresses while an MR is open).
+  AST_ENABLE_MR_PIPELINES: "true"
 
 include:
   - template: Jobs/SAST.gitlab-ci.yml
@@ -140,13 +144,15 @@ release:run:
   extends: .main-only
   stage: release
   needs: [release:plan, package:image]
+  # One release child pipeline at a time: canary traffic and settle scoring must not interleave.
+  resource_group: production
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
   trigger:
     include:
       - artifact: .out/release.yml
         job: release:plan
-    strategy: depend
+    strategy: mirror
 
 # ── govern ──────────────────────────────────────────────────────────────
 govern:baseline:
@@ -159,7 +165,8 @@ govern:baseline:
 govern:release-notes:
   extends: .main-only
   stage: govern
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  # The release keyword runs `glab release create` (release-cli is deprecated since GitLab 18.0).
+  image: registry.gitlab.com/gitlab-org/cli:latest
   needs: [release:run]
   script:
     - echo "Releasing $CI_COMMIT_SHORT_SHA"
@@ -198,12 +205,23 @@ undertaker:dig:
   script:
     - node probation/src/cli/start-flow.ts
 
+probation:sweep:
+  extends: [.node, .schedule-only]
+  stage: gate
+  needs: [census:file]
+  script:
+    # Closed-without-merge Undertaker MRs cost trust (F-10).
+    - node probation/src/cli/sweep.ts
+
 pages:
   extends: .node
   stage: govern
   rules:
+    # Always render, so a rolled-back release (failed child pipeline) still shows on the board.
     - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: always
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: always
   needs:
     - job: release:run
       optional: true

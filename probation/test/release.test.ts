@@ -29,3 +29,24 @@ describe('release plan', () => {
     expect(p['rollback:production']).toBeDefined();
   });
 });
+
+describe('release plan failure paths', () => {
+  it('rolls back on any earlier failure and only scores a rollback after a failed soak', () => {
+    const p = releasePipeline(
+      { level: 'hands_off', agent: 'undertaker', mrIid: 7, zones: ['legacy'] },
+      3,
+      10,
+    ) as Record<string, { when?: string; needs?: unknown[]; script?: string[]; stage?: string }>;
+    expect(p['rollback:production'].when).toBe('on_failure');
+    expect(p['rollback:production'].needs).toBeUndefined();
+    expect(p['rollback:production'].script?.[0]).toContain('PREVIOUS_REVISION');
+    expect(p['settle:rolled-back']).toMatchObject({
+      when: 'on_failure',
+      needs: ['rollback:production', 'soak:canary'],
+    });
+    expect(p['settle:survived'].needs).toContainEqual({
+      pipeline: '$PARENT_PIPELINE_ID',
+      job: 'measure:sci',
+    });
+  });
+});
