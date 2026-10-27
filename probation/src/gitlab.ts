@@ -104,6 +104,52 @@ export interface PagesSettings {
   deployments: { url: string; created_at: string }[];
 }
 
+// --- Demo conductor (scripts/demo.ts) shapes. Fields from doc/api/pipelines.md, jobs.md, merge_requests.md. ---
+
+export interface Pipeline {
+  id: number;
+  iid?: number;
+  status: string;
+  /** push, web, schedule, merge_request_event, parent_pipeline, … */
+  source?: string;
+  ref: string;
+  sha: string;
+  web_url: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface Job {
+  id: number;
+  name: string;
+  stage: string;
+  status: string;
+  allow_failure?: boolean;
+  web_url: string;
+  pipeline: { id: number };
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+/** A trigger job (bridge); downstream_pipeline is null until the child pipeline is created. */
+export interface TriggerJob extends Job {
+  downstream_pipeline: Pipeline | null;
+}
+
+/** GET of a single MR adds the source HEAD sha and head_pipeline (the list endpoint has neither). */
+export interface MergeRequestDetail extends MergeRequest {
+  sha: string;
+  head_pipeline?: Pipeline | null;
+  merge_when_pipeline_succeeds?: boolean;
+  created_at?: string;
+}
+
+export interface MrApprovals {
+  approved: boolean;
+  user_has_approved?: boolean;
+  approved_by: { user: { username: string } }[];
+}
+
 export class GitLab {
   private config: GitLabConfig;
   private fetcher: typeof fetch;
@@ -362,5 +408,88 @@ export class GitLab {
     if (json.errors?.length || !json.data)
       throw new Error(`GitLab GraphQL: ${json.errors?.map((e) => e.message).join('; ') ?? 'no data'}`);
     return json.data;
+  }
+
+  // --- Demo conductor (scripts/demo.ts): the clicks of RUNBOOK §5, through the API. Paths from doc/api/*.md. ---
+
+  // doc/api/issues.md: GET /projects/:id/issues/:issue_iid
+  getIssue(iid: number) {
+    return this.call<Issue>('GET', `/projects/:id/issues/${iid}`);
+  }
+
+  // doc/api/merge_requests.md: the single-MR GET carries sha and head_pipeline.
+  getMrDetail(iid: number) {
+    return this.call<MergeRequestDetail>('GET', `/projects/:id/merge_requests/${iid}`);
+  }
+
+  // doc/api/merge_request_approvals.md: GET /projects/:id/merge_requests/:iid/approvals
+  mrApprovals(iid: number) {
+    return this.call<MrApprovals>('GET', `/projects/:id/merge_requests/${iid}/approvals`);
+  }
+
+  // doc/api/merge_request_approvals.md: POST …/approve; sha must match the MR HEAD (409 otherwise).
+  approveMr(iid: number, sha?: string) {
+    return this.call<MrApprovals>('POST', `/projects/:id/merge_requests/${iid}/approve`, {
+      sha: sha || undefined,
+    });
+  }
+
+  // doc/api/merge_requests.md: PUT …/merge without auto_merge merges now (405 if it cannot merge).
+  acceptMr(iid: number, sha: string) {
+    return this.call<MergeRequestDetail>('PUT', `/projects/:id/merge_requests/${iid}/merge`, {
+      sha,
+      should_remove_source_branch: true,
+    });
+  }
+
+  // doc/api/pipeline_schedules.md: POST …/play answers {"message":"201 Created"}; the pipeline is created async.
+  playPipelineSchedule(id: number) {
+    return this.call<{ message: string }>('POST', `/projects/:id/pipeline_schedules/${id}/play`);
+  }
+
+  // doc/api/pipeline_schedules.md: GET …/pipelines (sort asc by default).
+  schedulePipelines(id: number) {
+    return this.call<Pipeline[]>(
+      'GET',
+      `/projects/:id/pipeline_schedules/${id}/pipelines?sort=desc&per_page=20`,
+    );
+  }
+
+  // doc/api/pipelines.md: GET /projects/:id/pipelines (newest first; child pipelines excluded by default).
+  listPipelines(query: string) {
+    return this.call<Pipeline[]>('GET', `/projects/:id/pipelines?${query}`);
+  }
+
+  getPipeline(id: number) {
+    return this.call<Pipeline>('GET', `/projects/:id/pipelines/${id}`);
+  }
+
+  // doc/api/jobs.md: trigger_jobs (GitLab 19.2+) replaces the deprecated bridges route; fall back on 404.
+  async pipelineTriggerJobs(id: number): Promise<TriggerJob[]> {
+    try {
+      return await this.call<TriggerJob[]>('GET', `/projects/:id/pipelines/${id}/trigger_jobs?per_page=100`);
+    } catch (error) {
+      if (!String(error).includes('→ 404')) throw error;
+      return this.call<TriggerJob[]>('GET', `/projects/:id/pipelines/${id}/bridges?per_page=100`);
+    }
+  }
+
+  // doc/api/jobs.md: works for child pipelines too; retried jobs are left out by default.
+  pipelineJobs(id: number) {
+    return this.all<Job>(`/projects/:id/pipelines/${id}/jobs`);
+  }
+
+  // doc/api/jobs.md: POST /projects/:id/jobs/:job_id/play, for a job in manual status.
+  playJob(id: number) {
+    return this.call<Job>('POST', `/projects/:id/jobs/${id}/play`);
+  }
+
+  // doc/api/jobs.md: GET …/jobs/:job_id/trace serves the raw log (plain text, not JSON).
+  async jobTrace(id: number): Promise<string> {
+    const path = `/projects/:id/jobs/${id}/trace`;
+    const url = `${this.config.apiUrl}${path.replace(':id', encodeURIComponent(this.config.projectId))}`;
+    const res = await this.fetcher(url, { headers: { 'PRIVATE-TOKEN': this.config.token } });
+    if (!res.ok) throw new Error(`GitLab GET ${path} → ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    return res.text();
   }
 }

@@ -23,6 +23,7 @@
     "demo:mock": "node scripts/mock-flow.ts",
     "gitlab:setup": "node scripts/gitlab-setup.ts",
     "doctor": "node scripts/doctor.ts",
+    "demo": "node scripts/demo.ts",
     "mcp": "node mcp/probation-server.ts"
   },
   "dependencies": {

@@ -37,6 +37,33 @@ export interface FakeMr {
   merge_commit_sha: string | null;
   merge_when_pipeline_succeeds: boolean;
   created_at: string;
+  /** Id of the pipeline on the source HEAD; served as head_pipeline by the single-MR GET only. */
+  head_pipeline_id?: number;
+}
+
+/** A pipeline (parent, child or scheduled). */
+export interface FakePipeline {
+  id: number;
+  iid: number;
+  status: string;
+  source: string;
+  ref: string;
+  sha: string;
+  created_at: string;
+}
+
+/** A CI job; kind 'bridge' is a trigger job whose downstream is a child pipeline. */
+export interface FakeJob {
+  id: number;
+  pipelineId: number;
+  name: string;
+  stage: string;
+  status: string;
+  allow_failure: boolean;
+  kind: 'build' | 'bridge';
+  downstreamId?: number;
+  /** Raw job log, served by GET /jobs/:id/trace. */
+  trace: string;
 }
 
 export interface FakeCommit {
@@ -85,6 +112,11 @@ export interface FakeState {
   releases: Record<string, unknown>[];
   flows: { token: string; body: Record<string, unknown> }[];
   requests: { method: string; path: string; status: number }[];
+  pipelines: FakePipeline[];
+  jobs: FakeJob[];
+  approvals: { iid: number; username: string }[];
+  /** Called before every authenticated request; tests use it to move pipelines along between polls. */
+  onRequest?: (method: string, path: string) => void;
   /** Failure injection: return a status (e.g. 500) to fail a request before it is handled. */
   fail?: (method: string, path: string) => number | undefined;
 }
@@ -93,6 +125,15 @@ export interface FakeGitLab {
   url: string;
   state: FakeState;
   close(): Promise<void>;
+}
+
+/** A text/plain response body (job traces). */
+class RawText {
+  text: string;
+
+  constructor(text: string) {
+    this.text = text;
+  }
 }
 
 class HttpError extends Error {
@@ -384,10 +425,24 @@ function route(
         .filter((m) => st === 'all' || m.state === st)
         .filter((m) => byLabels(m.labels, query))
         .sort((x, y) => y.iid - x.iid);
-      return [200, paginate(list, query, res).map(out)];
+      return [200, paginate(list, query, res).map(mrOut)];
     }
     const mr = mrBy(state, b);
-    if (key === 'GET merge_requests/*') return [200, out(mr)];
+    if (key === 'GET merge_requests/*') {
+      const head = state.pipelines.find((p) => p.id === mr.head_pipeline_id);
+      return [200, { ...mrOut(mr), head_pipeline: head ? pipelineJson(state, head) : null }];
+    }
+    if (key === 'GET merge_requests/*/approvals') return [200, approvalState(state, mr.iid, token)];
+    if (key === 'POST merge_requests/*/approve') {
+      if (body.sha && body.sha !== mr.sha)
+        throw new HttpError(409, { message: 'SHA does not match HEAD of source branch' });
+      const username = state.project.tokens.get(token)?.name ?? 'unknown';
+      // GitLab answers 401 when the user already approved.
+      if (state.approvals.some((x) => x.iid === mr.iid && x.username === username))
+        throw new HttpError(401, { message: '401 Unauthorized' });
+      state.approvals.push({ iid: mr.iid, username });
+      return [201, approvalState(state, mr.iid, token)];
+    }
     if (key === 'PUT merge_requests/*') {
       if (typeof body.title === 'string') {
         mr.title = body.title;
@@ -396,13 +451,22 @@ function route(
       if (typeof body.description === 'string') mr.description = body.description;
       mr.labels = applyLabelParams(mr.labels, body);
       if (body.state_event === 'close' && mr.state === 'opened') mr.state = 'closed';
-      return [200, out(mr)];
+      return [200, mrOut(mr)];
     }
     if (key === 'GET merge_requests/*/diffs')
       return [200, paginate(state.diffs.get(mr.iid) ?? [], query, res)];
     if (key === 'POST merge_requests/*/notes') return [201, addNote(state, 'mr', mr.iid, body)];
     if (key === 'PUT merge_requests/*/merge') {
       if (mr.state !== 'opened' || mr.draft) throw new HttpError(405, { message: '405 Method Not Allowed' });
+      const head = state.pipelines.find((p) => p.id === mr.head_pipeline_id);
+      // "Pipelines must succeed": an immediate merge with a failed or unfinished head pipeline is refused.
+      if (
+        head &&
+        head.status !== 'success' &&
+        !body.auto_merge &&
+        state.project.only_allow_merge_if_pipeline_succeeds
+      )
+        throw new HttpError(405, { message: '405 Method Not Allowed' });
       if (body.sha && body.sha !== mr.sha)
         throw new HttpError(409, { message: 'SHA does not match HEAD of source branch' });
       state.merges.push({
@@ -414,7 +478,7 @@ function route(
       // The calling pipeline is still running, so GitLab sets auto-merge rather than merging now.
       if (body.auto_merge) mr.merge_when_pipeline_succeeds = true;
       else mergeMr(state, mr.iid);
-      return [200, out(mr)];
+      return [200, mrOut(mr)];
     }
     throw notFound;
   }
@@ -482,7 +546,7 @@ function route(
     if (b === 'commits') {
       if (method === 'POST' && !c) return [201, commitFiles(state, body)];
       if (method === 'GET' && c && d === 'merge_requests')
-        return [200, state.mrs.filter((m) => m.merge_commit_sha === c || m.sha === c).map(out)];
+        return [200, state.mrs.filter((m) => m.merge_commit_sha === c || m.sha === c).map(mrOut)];
       if (method === 'POST' && c && d === 'revert') {
         const branch = String(body.branch ?? '');
         if (!state.commits.some((x) => x.id === c))
@@ -503,12 +567,179 @@ function route(
     throw notFound;
   }
 
+  const ci = ciRoute(state, key, a, b, query, res);
+  if (ci) return ci;
+
   if (key === 'POST releases') {
     if (!body.tag_name) throw new HttpError(400, { error: 'tag_name is missing' });
     state.releases.push(body);
     return [201, { ...body, created_at: now() }];
   }
   throw notFound;
+}
+
+// ---------- CI: pipelines, jobs, trigger jobs, schedule play (scripts/demo.ts) ----------
+
+const mrOut = (mr: FakeMr) => {
+  const { head_pipeline_id: _, ...rest } = out(mr);
+  return rest;
+};
+
+function approvalState(state: FakeState, iid: number, token: string) {
+  const by = state.approvals.filter((x) => x.iid === iid);
+  const me = state.project.tokens.get(token)?.name;
+  return {
+    approved: by.length > 0,
+    user_has_approved: by.some((x) => x.username === me),
+    approved_by: by.map((x) => ({ user: { username: x.username } })),
+  };
+}
+
+function pipelineJson(state: FakeState, p: FakePipeline) {
+  return {
+    id: p.id,
+    iid: p.iid,
+    project_id: Number(state.projectId),
+    status: p.status,
+    source: p.source,
+    ref: p.ref,
+    sha: p.sha,
+    web_url: `${state.baseUrl}/${state.project.path}/-/pipelines/${p.id}`,
+    created_at: p.created_at,
+    updated_at: now(),
+  };
+}
+
+function jobJson(state: FakeState, j: FakeJob) {
+  const p = state.pipelines.find((x) => x.id === j.pipelineId);
+  const json = {
+    id: j.id,
+    name: j.name,
+    stage: j.stage,
+    status: j.status,
+    allow_failure: j.allow_failure,
+    ref: p?.ref,
+    web_url: `${state.baseUrl}/${state.project.path}/-/jobs/${j.id}`,
+    pipeline: {
+      id: j.pipelineId,
+      project_id: Number(state.projectId),
+      ref: p?.ref,
+      sha: p?.sha,
+      status: p?.status,
+    },
+  };
+  if (j.kind !== 'bridge') return json;
+  const child = state.pipelines.find((x) => x.id === j.downstreamId);
+  return { ...json, downstream_pipeline: child ? pipelineJson(state, child) : null };
+}
+
+/** Test helper: a pipeline with its jobs; `trigger` adds a bridge (e.g. release:run) to a child pipeline. */
+export function addPipeline(
+  state: FakeState,
+  input: {
+    status: string;
+    source?: string;
+    ref?: string;
+    jobs?: { name: string; stage?: string; status: string; allow_failure?: boolean; trace?: string }[];
+    trigger?: { name: string; child?: FakePipeline };
+  },
+): FakePipeline {
+  const id = Math.max(100, ...state.pipelines.map((p) => p.id)) + 1;
+  const pipeline: FakePipeline = {
+    id,
+    iid: id - 100,
+    status: input.status,
+    source: input.source ?? 'push',
+    ref: input.ref ?? state.defaultBranch,
+    sha: newSha(),
+    created_at: now(),
+  };
+  state.pipelines.push(pipeline);
+  for (const j of input.jobs ?? [])
+    state.jobs.push({
+      id: Math.max(2000, ...state.jobs.map((x) => x.id)) + 1,
+      pipelineId: id,
+      name: j.name,
+      stage: j.stage ?? j.name.split(':')[0],
+      status: j.status,
+      allow_failure: j.allow_failure ?? false,
+      kind: 'build',
+      trace: j.trace ?? '',
+    });
+  if (input.trigger)
+    state.jobs.push({
+      id: Math.max(2000, ...state.jobs.map((x) => x.id)) + 1,
+      pipelineId: id,
+      name: input.trigger.name,
+      stage: 'release',
+      status: input.trigger.child ? 'success' : 'created',
+      allow_failure: false,
+      kind: 'bridge',
+      downstreamId: input.trigger.child?.id,
+      trace: '',
+    });
+  return pipeline;
+}
+
+export function jobBy(state: FakeState, pipelineId: number, name: string): FakeJob {
+  const job = state.jobs.find((j) => j.pipelineId === pipelineId && j.name === name);
+  if (!job) throw new Error(`no job ${name} in pipeline ${pipelineId}`);
+  return job;
+}
+
+function ciRoute(
+  state: FakeState,
+  key: string,
+  a: string,
+  b: string | undefined,
+  query: URLSearchParams,
+  res: ServerResponse,
+): [number, unknown] | undefined {
+  if (key === 'POST pipeline_schedules/*/play' || key === 'GET pipeline_schedules/*/pipelines') {
+    const schedule = state.project.schedules.find((s) => s.id === Number(b));
+    if (!schedule) throw new HttpError(404, { message: '404 Pipeline Schedule Not Found' });
+    const ref = schedule.ref.replace(/^refs\/heads\//, '');
+    if (key === 'POST pipeline_schedules/*/play') {
+      addPipeline(state, { status: 'created', source: 'schedule', ref });
+      return [201, { message: '201 Created' }];
+    }
+    // Schedule pipelines: the fake keeps no schedule id, so every scheduled pipeline on its ref counts.
+    const list = state.pipelines
+      .filter((p) => p.source === 'schedule' && p.ref === ref)
+      .sort((x, y) => (query.get('sort') === 'desc' ? y.id - x.id : x.id - y.id));
+    return [200, paginate(list, query, res).map((p) => pipelineJson(state, p))];
+  }
+  if (key === 'GET pipelines') {
+    const source = query.get('source');
+    const list = state.pipelines
+      .filter((p) => (source ? p.source === source : p.source !== 'parent_pipeline'))
+      .filter((p) => !query.get('ref') || p.ref === query.get('ref'))
+      .sort((x, y) => (query.get('sort') === 'asc' ? x.id - y.id : y.id - x.id));
+    return [200, paginate(list, query, res).map((p) => pipelineJson(state, p))];
+  }
+  if (a === 'pipelines' && b) {
+    const p = state.pipelines.find((x) => x.id === Number(b));
+    if (!p) throw new HttpError(404, { message: '404 Not found' });
+    if (key === 'GET pipelines/*') return [200, pipelineJson(state, p)];
+    const jobs = (kind: FakeJob['kind']) =>
+      state.jobs.filter((j) => j.pipelineId === p.id && j.kind === kind).sort((x, y) => y.id - x.id);
+    if (key === 'GET pipelines/*/jobs')
+      return [200, paginate(jobs('build'), query, res).map((j) => jobJson(state, j))];
+    if (key === 'GET pipelines/*/trigger_jobs' || key === 'GET pipelines/*/bridges')
+      return [200, paginate(jobs('bridge'), query, res).map((j) => jobJson(state, j))];
+  }
+  if (a === 'jobs' && b) {
+    const job = state.jobs.find((j) => j.id === Number(b));
+    if (!job) throw new HttpError(404, { message: '404 Not found' });
+    if (key === 'GET jobs/*') return [200, jobJson(state, job)];
+    if (key === 'GET jobs/*/trace') return [200, new RawText(job.trace)];
+    if (key === 'POST jobs/*/play') {
+      if (job.status !== 'manual') throw new HttpError(400, { message: '400 Bad request - Unplayable Job' });
+      job.status = 'pending';
+      return [200, jobJson(state, job)];
+    }
+  }
+  return undefined;
 }
 
 // ---------- Project setup endpoints (labels, schedules, protected tags, variables, pages, GraphQL) ----------
@@ -770,6 +1001,9 @@ export async function start(
     releases: [],
     flows: [],
     requests: [],
+    pipelines: [],
+    jobs: [],
+    approvals: [],
   };
   const server = createServer(async (req, res) => {
     const method = req.method ?? 'GET';
@@ -778,6 +1012,10 @@ export async function start(
     const send = (status: number, payload: unknown) => {
       state.requests.push({ method, path, status });
       res.statusCode = status;
+      if (payload instanceof RawText) {
+        res.setHeader('content-type', 'text/plain; charset=utf-8');
+        return res.end(payload.text);
+      }
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify(payload));
     };
@@ -788,6 +1026,7 @@ export async function start(
       '';
     if (token !== state.projectToken && token !== state.userToken && !state.project.tokens.has(token))
       return send(401, { message: '401 Unauthorized' });
+    state.onRequest?.(method, path);
     const injected = state.fail?.(method, path);
     if (injected) {
       // Retry-After: 0 keeps the client's retry loop fast in tests.

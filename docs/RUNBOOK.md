@@ -131,6 +131,18 @@ Delete `k.json` afterwards.
 | 4 | `GET /api/v1/export.csv` | **Nothing.** That's the point | 🟢 Hands-off auto-merge → canary → soak synthetic `bookkeeping-partner-monthly-export` → 404 → rollback, revert commit, −40, ⬇️ demotion, do-not-bury | about 10 |
 | 5 | `moment` / `lodash` (zone `deps`) | Approve and merge | 🌱 SCI note shows the size and SCI drop; survives → +10 | about 10 |
 
+**Demo conductor: one command per act.** `scripts/demo.ts` does the clicks above through the API and says what to run next. It uses the same env as `npm run doctor` (`GITLAB_TOKEN` = your PAT with scope `api`, `GITLAB_PROJECT`, optional `GITLAB_API_URL`) and never prints the token.
+
+| Command | Does |
+|---|---|
+| `npm run demo -- status` | One screen: ledger score and level per zone, 🪦 issues by `undertaker::` label, open Undertaker MRs (level label, pipeline), the latest `main` pipeline and its release child with every job's status, and the next step |
+| `npm run demo -- dig [--issue N] [--force]` | Plays the "Probation census + dig + sweep" schedule and prints the pipeline URL. With `--issue N` it first checks that dig would pick #N; if not, it lists the candidates ahead of #N and stops (`--force` plays anyway). It never relabels issues |
+| `npm run demo -- approve` | Act 1 and 5: approves the newest open MR labelled `probation::assisted`, marks it ready and merges it, but only if its pipeline succeeded |
+| `npm run demo -- promote` | Act 2 and 3: plays `approve:production` in the newest release child pipeline when it is `manual` |
+| `npm run demo -- watch [--new] [--timeout 900]` | Follows the release child pipeline (polls every 15 s), prints job transitions, the `soak:canary` / `soak:canary-signal` verdict lines and the ledger change after settle. Exits 0 when released, 1 on a rollback. Use `--new` right after a merge so it waits for the new `main` pipeline and ignores the previous release |
+
+A typical act: `status` → `dig --issue N` → (Undertaker opens the MR) → `approve` (Assisted) → `watch --new` → `promote` in a second terminal when watch shows ✋ (Supervised) → `status`. For act 4, run only `watch --new`.
+
 **If the Flows API refuses** (`undertaker:dig` fails with 403 or 400), assign the candidate issue to the `ai-undertaker-*` service account yourself. That is the assign trigger, one click per act; mention it honestly in the video as "kicked off by assigning the issue".
 
 **If a flow run goes wrong:** add the `undertaker::candidate` label back to the issue (it is scoped, so it replaces `undertaker::in-progress`), close the bad MR, and run again. A failed flow costs no credits.
