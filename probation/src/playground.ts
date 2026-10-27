@@ -204,7 +204,7 @@ button:hover{border-color:var(--muted)}
 input[type="text"],input[type="number"]{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-height:44px;min-width:0}
 input[type="number"]{width:5.2em;text-align:right}
 input[type="checkbox"]{width:18px;height:18px;margin:0;accent-color:var(--ink)}
-button:focus-visible,input:focus-visible,a:focus-visible,.table-wrap:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button:focus-visible,input:focus-visible,a:focus-visible,pre:focus-visible,.table-wrap:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .adder{display:flex;gap:8px}.adder input{flex:1}
 label.lbl{display:block;font-weight:600;margin-bottom:6px}
 .table-wrap{overflow-x:auto;margin-top:14px;border:1px solid var(--line);border-radius:6px}
@@ -370,7 +370,8 @@ const SCRIPT = `
       cb.type = 'checkbox';
       cb.checked = f.deleted;
       cb.addEventListener('change', () => { f.deleted = cb.checked; custom(); update(); });
-      del.append(cb, document.createTextNode('file deleted'));
+      // Every row has this checkbox: its name says which file (visibly 'file deleted', the path for screen readers).
+      del.append(cb, document.createTextNode('file deleted'), el('span', 'sr', ' \\u2014 ' + f.path));
       td.append(del);
       tr.append(td);
       for (const key of ['added', 'removed']) {

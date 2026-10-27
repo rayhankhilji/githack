@@ -124,6 +124,18 @@ describe('playground', () => {
     expect(html).not.toContain('innerHTML');
   });
 
+  it('names every per-file control by its file, and shows focus on every focusable element', () => {
+    const html = render();
+    // Each row's "file deleted" checkbox carries its path (screen-reader only), like the row's other controls.
+    expect(html).toContain("document.createTextNode('file deleted'), el('span', 'sr', ' \\u2014 ' + f.path)");
+    expect(html).toContain("'Lines ' + key + ' in ' + f.path");
+    expect(html).toContain("'Remove ' + f.path");
+    // The MR note is focusable (tabindex="0") so keyboard users can scroll it; it gets the same ring as buttons.
+    for (const sel of ['button', 'input', 'a', 'pre', 'summary'])
+      expect(html).toMatch(new RegExp(`${sel}:focus-visible[^{]*\\{outline:2px solid var\\(--ink\\)`));
+    expect(html).toContain('<pre id="note" aria-labelledby="note-h" tabindex="0">');
+  });
+
   it('lists the repo tree, from git or by walking the directory', () => {
     expect(repoFiles()).toContain('probation/policy.yml');
     const dir = mkdtempSync(join(tmpdir(), 'pg-'));

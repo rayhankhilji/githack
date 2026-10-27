@@ -1,5 +1,5 @@
-// audit-pages — accessibility and robustness audit of the three pages judges open: the Probation Board,
-// the ledger replay and the Tallybook dashboard. Needs a browser, so it is not part of `npm test`.
+// audit-pages — accessibility and robustness audit of the pages judges open: the Probation Board,
+// the ledger replay, the gate playground and the Tallybook dashboard. Needs a browser, so it is not part of `npm test`.
 //
 // Usage:
 //   npm i --prefix /tmp/axe axe-core            # once; axe-core is not a project dependency
@@ -10,6 +10,8 @@
 //   axe-core (WCAG 2.0–2.2 A/AA + best practice), horizontal page overflow, console errors,
 //   keyboard reachability with a visible focus indicator, level-color contrast on cards,
 //   the replay's keyboard controls and live status, and that reduced motion leaves no animation.
+// The playground is audited on its opening state, with no files, and after clicking each preset button
+// (axe on every verdict, at both widths and both themes).
 // Prints a findings table; exits 1 if any serious or critical axe violation (or a failed check) remains.
 // Focus-state screenshots go to --shots (default .out/audit) to be looked at.
 import { execFileSync, execSync } from 'node:child_process';
@@ -20,6 +22,7 @@ import { pathToFileURL } from 'node:url';
 import { buildServer } from '../app/src/server.ts';
 import { renderBoard } from '../probation/src/board.ts';
 import type { Ledger } from '../probation/src/ledger.ts';
+import { PRESETS } from '../probation/src/playground.ts';
 import { loadPolicy } from '../probation/src/policy.ts';
 import { renderReplay } from '../probation/src/replay.ts';
 
@@ -85,6 +88,7 @@ const policy = loadPolicy();
 const at = '2026-10-27T03:00:00Z';
 writeFileSync(join(shots, 'index.html'), renderBoard(ledger, policy, at));
 writeFileSync(join(shots, 'replay.html'), renderReplay(ledger, policy, at));
+writeFileSync(join(shots, 'playground.html'), readFileSync('.out/playground.html', 'utf8'));
 const { app } = buildServer({ env: { FLAG_HOLIDAY_BANNER2024: 'on' }, censusLog: () => {} });
 writeFileSync(join(shots, 'tallybook.html'), (await app.inject('/')).body);
 await app.close();
@@ -100,8 +104,10 @@ const PAGES: { name: string; file: string; states: string[] }[] = [
     file: 'replay.html',
     states: ['?step=0', `?step=${handsOff}`, `?step=${rollback}`, `?step=${ledger.events.length + 1}`],
   },
+  { name: 'playground', file: 'playground.html', states: ['', '?preset=none'] },
   { name: 'tallybook', file: 'tallybook.html', states: [''] },
 ];
+const presetIds = PRESETS.map((p) => p.id);
 const VIEWPORTS = [
   { width: 390, height: 844 },
   { width: 1280, height: 800 },
@@ -194,6 +200,7 @@ async function tabWalk(page: Page): Promise<{ seen: Focus[]; focusable: number }
       ).length,
   );
   const seen: Focus[] = [];
+  const keys: string[] = [];
   for (let i = 0; i < focusable + 2; i++) {
     await page.keyboard.press('Tab');
     const f = await page.evaluate(() => {
@@ -202,11 +209,14 @@ async function tabWalk(page: Page): Promise<{ seen: Focus[]; focusable: number }
       const cs = getComputedStyle(e);
       const outline = cs.outlineStyle !== 'none' && Number.parseFloat(cs.outlineWidth) >= 1;
       const ring = cs.boxShadow !== 'none';
-      const name = (e.getAttribute('aria-label') ?? e.textContent ?? '').trim().slice(0, 40);
+      const labelled = (e as HTMLInputElement).labels?.[0]?.textContent;
+      const name = (e.getAttribute('aria-label') ?? (labelled || e.textContent) ?? '').trim().slice(0, 40);
       return { tag: e.tagName.toLowerCase(), name, visible: outline || ring, key: e.outerHTML.slice(0, 120) };
     });
     if (!f) break;
-    if (seen.some((s) => `${s.tag}|${s.name}` === `${f.tag}|${f.name}`)) break;
+    // Inputs can share a tag (and markup), so the wrap-around test uses markup plus accessible name.
+    if (keys.includes(`${f.key}|${f.name}`)) break;
+    keys.push(`${f.key}|${f.name}`);
     seen.push({ tag: f.tag, name: f.name, visible: f.visible });
   }
   return { seen, focusable };
@@ -277,6 +287,60 @@ for (const p of PAGES) {
         await ctx.close();
       }
     }
+  }
+}
+
+// Playground: click each preset (as a visitor would) and audit the verdict it produces.
+for (const vp of VIEWPORTS) {
+  for (const scheme of SCHEMES) {
+    const { ctx, page, errors } = await open('playground.html', '?preset=none', vp.width, vp.height, scheme);
+    for (const id of presetIds) {
+      const tag = `${vp.width} ${scheme} click ${id}`;
+      const shown = await page.evaluate((pid) => {
+        const b = document.querySelector<HTMLButtonElement>(`[data-preset="${pid}"]`);
+        b?.click();
+        return {
+          pressed: b?.getAttribute('aria-pressed') ?? '',
+          line: document.getElementById('v-line')?.textContent ?? '',
+        };
+      }, id);
+      if (shown.pressed !== 'true' || !shown.line)
+        fail('playground', tag, 'preset', 'serious', `clicking ${id} did not show a verdict`);
+      for (const v of await axe(page))
+        fail('playground', tag, `axe ${v.id}`, v.impact ?? '?', `${v.help} (${v.nodes}× e.g. ${v.target})`);
+      const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (sideways > 0) fail('playground', tag, 'overflow', 'serious', `page scrolls ${sideways}px sideways`);
+      const anims = await page.evaluate(() => document.getAnimations().length);
+      if (anims) fail('playground', tag, 'reduced-motion', 'serious', `${anims} animation(s) running`);
+    }
+    for (const e of errors)
+      fail('playground', `${vp.width} ${scheme} presets`, 'console', 'serious', e.slice(0, 120));
+    await ctx.close();
+  }
+}
+
+// Focus-state screenshots of the playground: a preset button, a file-row control and the Copy button.
+for (const scheme of SCHEMES) {
+  for (const [name, sel] of [
+    ['preset', '[data-preset]'],
+    ['path', '#path'],
+    ['row', '#files input[type="number"]'],
+    ['checkbox', '#files input[type="checkbox"]'],
+    ['copy', '#copy'],
+    ['score', '#scores input'],
+  ] as const) {
+    const { ctx, page } = await open('playground.html', '', 1280, 800, scheme);
+    // Focus by keyboard so :focus-visible applies: focus the control before, then Tab.
+    await page.evaluate((s) => {
+      const all = [...document.querySelectorAll<HTMLElement>('a[href],button,input,summary,[tabindex="0"]')];
+      const i = all.indexOf(document.querySelector<HTMLElement>(s) as HTMLElement);
+      const prev = all[i - 1];
+      prev?.focus();
+      (document.querySelector<HTMLElement>(s) as HTMLElement).scrollIntoView({ block: 'center' });
+    }, sel);
+    await page.keyboard.press('Tab');
+    await page.screenshot({ path: join(shots, `focus-playground-${name}-${scheme}.png`) });
+    await ctx.close();
   }
 }
 
