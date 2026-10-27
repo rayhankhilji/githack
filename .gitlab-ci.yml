@@ -72,6 +72,10 @@ include:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
+    # Package/release/govern need Google Cloud; until GCP_PROJECT_ID is set the main pipeline stays green
+    # with verify, secure, measure and the Pages board only.
+    - if: $GCP_PROJECT_ID == null || $GCP_PROJECT_ID == ""
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 .schedule-only:
@@ -256,6 +260,8 @@ pages:
     - job: undertaker:dig
       optional: true
   script:
+    # Before live runs exist (no project token yet), publish the offline rehearsal ledger; the board says so.
+    - if [ -z "$GITLAB_PROBATION_TOKEN" ]; then node scripts/mock-flow.ts && export LEDGER_FILE=.out/mock-ledger.json BOARD_REHEARSAL=1; fi
     - npm run board -- --out public/index.html
   artifacts:
     paths: [public]

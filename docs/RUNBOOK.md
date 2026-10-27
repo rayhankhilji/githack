@@ -150,6 +150,24 @@ A typical act: `status` → `dig --issue N` → (Undertaker opens the MR) → `a
 ## 6. Record and submit
 
 - Follow `docs/DEMO_SCRIPT.md` and keep it under 2:55.
+
+**Final hour (deadline 2026-10-27 13:00 UTC).** `npm run submission` fills the ✏️ placeholders it has real values for and checks the rest. It never invents a number: anything it can't measure stays ✏️.
+
+1. Preview the fill. With `GITLAB_TOKEN` and `GITLAB_PROJECT` set, it reads the `ledger` branch and the 🌱 note on the newest merged Undertaker MR that touched `app/package.json`:
+   ```bash
+   GITLAB_TOKEN=… GITLAB_PROJECT=group/tallybook npm run submission -- fill --dry-run \
+     --name "<your name>" --video-url https://youtu.be/<id> --pages-url https://<group>.gitlab.io/tallybook \
+     --app-url https://tallybook-<hash>-uc.a.run.app --devpost-url https://devpost.com/software/<slug>
+   ```
+   It prints the values it found (SCI change, graves, the burial MR), the placeholders it would change and a unified diff. `--name` only changes the README title, the Name field in `docs/SUBMISSION.md` and the working-title notes. The CI system keeps the name Probation. Edit the video cards (`docs/media/cards/`) by hand if you change the name.
+2. Run the same command without `--dry-run`. A second run changes nothing.
+3. Check: `npm run submission -- check --video <file> --video-url https://youtu.be/<id> --online`. It lists every ✏️ left, with its file and line. A ✏️ in README or SUBMISSION blocks (exit 1); one in STAGES or an *Optional* line only warns. It also checks:
+   - LICENSE is MIT and the README links and images exist;
+   - the video is under 180 s (`ffprobe`) and the YouTube link is public or unlisted;
+   - the Devpost choices are stated, and the project is public with pipelines (when the GitLab variables are set);
+   - the working tree is clean.
+4. Fix the ✏️ left by hand (screenshots, the optional scale-up), then commit and push before 13:00 UTC: `git commit -am "docs: final submission links and results" && git push`. Then freeze: no more pushes to the judged repo.
+
 - Copy the text from `docs/SUBMISSION.md` into Devpost. Pick **Path A** and **Hands-off**, and opt in to **Most Environmentally Impactful**.
 - After submitting, don't push to the judged repo; fork it to keep working. Keep Cloud Run and Pages live until 2026-11-16.
 

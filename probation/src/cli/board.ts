@@ -4,7 +4,14 @@ import { renderBoard } from '../board.ts';
 import { buildPlayground } from '../playground.ts';
 import { loadPolicy } from '../policy.ts';
 import { renderReplay } from '../replay.ts';
-import { arg, ledgerStore, main, writeOut } from './common.ts';
+import { arg, env, ledgerStore, main, writeOut } from './common.ts';
+
+// Shown when Pages is published from the offline rehearsal ledger (no live runs yet), so nobody mistakes it for production.
+const REHEARSAL_BANNER =
+  '<p role="note" style="border:1px solid var(--line);border-left:4px solid var(--assisted);padding:8px 12px;margin:0 0 16px">Offline rehearsal: this board shows the scripted demo ledger from <code>npm run demo:mock</code>, not live production runs.</p>';
+
+const withBanner = (html: string) =>
+  env.BOARD_REHEARSAL ? html.replace('<main>', `<main>${REHEARSAL_BANNER}`) : html;
 
 main(async () => {
   const out = arg('out', 'public/index.html');
@@ -13,8 +20,8 @@ main(async () => {
   // The board links to replay.html and playground.html, so they always sit in the same directory.
   const replay = join(dirname(out), 'replay.html');
   const playground = join(dirname(out), 'playground.html');
-  writeOut(out, renderBoard(ledger, policy));
-  writeOut(replay, renderReplay(ledger, policy));
+  writeOut(out, withBanner(renderBoard(ledger, policy)));
+  writeOut(replay, withBanner(renderReplay(ledger, policy)));
   writeOut(playground, await buildPlayground(policy, ledger));
   console.log(`board: wrote ${out}, ${replay} and ${playground}`);
 });

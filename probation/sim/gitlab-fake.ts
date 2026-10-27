@@ -456,6 +456,15 @@ function route(
     if (key === 'GET merge_requests/*/diffs')
       return [200, paginate(state.diffs.get(mr.iid) ?? [], query, res)];
     if (key === 'POST merge_requests/*/notes') return [201, addNote(state, 'mr', mr.iid, body)];
+    // doc/api/notes.md: newest first by default (sort=desc, order_by=created_at).
+    if (key === 'GET merge_requests/*/notes') {
+      const list = state.notes
+        .map((n, i) => ({ ...n, id: i + 1 }))
+        .filter((n) => n.noteable === 'mr' && n.iid === mr.iid)
+        .reverse()
+        .map((n) => ({ id: n.id, body: n.body, system: false, noteable_iid: n.iid }));
+      return [200, paginate(list, query, res)];
+    }
     if (key === 'PUT merge_requests/*/merge') {
       if (mr.state !== 'opened' || mr.draft) throw new HttpError(405, { message: '405 Method Not Allowed' });
       const head = state.pipelines.find((p) => p.id === mr.head_pipeline_id);
