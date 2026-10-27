@@ -243,7 +243,9 @@ code{font-family:inherit;overflow-wrap:anywhere}
 .when{color:var(--muted);font-size:.85rem;letter-spacing:.06em}
 .line{font-weight:600;font-size:1.85rem;line-height:1.3;margin:.25rem 0 .35rem;overflow-wrap:anywhere}
 .line .sep{color:var(--muted);font-weight:400}
-.k-pos{color:var(--hands)}.k-neg{color:var(--bad)}.k-assisted{color:var(--assisted)}.k-supervised{color:var(--supervised)}.k-hands_off{color:var(--hands)}
+/* The caption sits on --paper, where light amber and green are 4.45:1; 10% ink lifts every tone past 5:1. */
+.k-pos,.k-hands_off{--k:var(--hands)}.k-neg{--k:var(--bad)}.k-assisted{--k:var(--assisted)}.k-supervised{--k:var(--supervised)}
+[class^="k-"]{color:color-mix(in srgb,var(--k) 90%,var(--ink))}
 .detail{margin:0;color:var(--muted);font-size:1.05rem;overflow-wrap:anywhere}
 .stage{display:grid;grid-template-columns:minmax(0,1fr);gap:1.2rem}
 @media (min-width:900px){.stage{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}}
@@ -263,7 +265,8 @@ code{font-family:inherit;overflow-wrap:anywhere}
 .fill,.lost{position:absolute;top:0;bottom:0;left:0;border-radius:999px}
 .fill{width:100%;background:var(--lc);transform-origin:0 50%;transform:scaleX(0)}
 .lost{background:var(--bad);opacity:0}.lost.on{opacity:.9}
-.tick{position:absolute;top:-.3rem;bottom:-.3rem;width:2px;background:var(--ink);opacity:.55}
+/* The tick is faded through its color, not opacity, so its label keeps full --muted contrast. */
+.tick{position:absolute;top:-.3rem;bottom:-.3rem;width:2px;background:color-mix(in srgb,var(--ink) 55%,transparent)}
 .tick span{position:absolute;top:1.5rem;left:0;transform:translateX(-50%);white-space:nowrap;font-size:.8rem;color:var(--muted)}
 .tick.end span{transform:translateX(-100%)}
 .stamp{align-self:flex-start;margin-top:auto;border:.2rem solid var(--bad);color:var(--bad);background:var(--card);font-weight:600;font-size:1.35rem;letter-spacing:.08em;text-transform:uppercase;padding:.3rem .8rem;border-radius:6px;transform:rotate(-6deg);opacity:0;pointer-events:none}
@@ -458,7 +461,9 @@ const SCRIPT = `
     const li = el('li');
     const b = el('button', '', s.kind === 'start' ? 'Start' : s.kind === 'end' ? 'End' : s.mr !== undefined ? '!' + s.mr : String(i));
     b.type = 'button';
-    b.setAttribute('aria-label', 'Go to step ' + i + ': ' + s.caption.map((p) => p.t).join(' \\u00b7 '));
+    // The accessible name starts with the visible label (WCAG 2.5.3), then says what the step holds.
+    const said = s.caption.map((p) => p.t).join(' \\u00b7 ');
+    b.setAttribute('aria-label', said.startsWith(b.textContent) ? said : b.textContent + ': ' + said);
     b.addEventListener('click', () => { pause(); show(i); });
     li.append(b);
     $('ticks').append(li);
@@ -550,6 +555,8 @@ const SCRIPT = `
       const dug = i < s.graves;
       d.classList.toggle('new', dug && !d.classList.contains('dug'));
       d.classList.toggle('dug', dug);
+      // An undug plot is blank on screen; keep its title from screen readers until the story reaches it.
+      if (dug) d.removeAttribute('aria-hidden'); else d.setAttribute('aria-hidden', 'true');
     });
     ticks.forEach((b, i) => {
       b.classList.toggle('past', i <= k);
@@ -563,7 +570,6 @@ const SCRIPT = `
   function ui() {
     const btn = $('play');
     btn.textContent = playing ? '\\u275a\\u275a Pause' : cur === steps.length - 1 ? '\\u21ba Replay' : '\\u25b6 Play';
-    btn.setAttribute('aria-pressed', String(playing));
     root.dataset.playing = String(playing);
     root.dataset.done = String(cur === steps.length - 1);
   }
@@ -611,7 +617,7 @@ export function renderReplay(ledger: Ledger, policy: Policy, generatedAt = new D
 <section class="stage" aria-label="Autonomy by zone"><div class="zones" id="zones"></div>
 <figure class="chartbox"><figcaption>Trust over time</figcaption><svg class="chart" id="chart" viewBox="0 0 720 250" role="img" aria-label="Trust score per zone, drawn step by step"></svg></figure></section>
 <section class="yard"><h2>Graveyard</h2><div class="graves" id="graves"></div></section>
-<div class="bar"><div class="ctl" role="group" aria-label="Replay controls"><button type="button" id="restart" title="Restart (Home)">↺ Restart</button><button type="button" id="back" title="Previous step (←)">◀ Back</button><button type="button" id="play" class="primary" aria-pressed="false" title="Play or pause (space)">▶ Play</button><button type="button" id="fwd" title="Next step (→)">Next ▶</button></div>
+<div class="bar"><div class="ctl" role="group" aria-label="Replay controls"><button type="button" id="restart" title="Restart (Home)">↺ Restart</button><button type="button" id="back" title="Previous step (←)">◀ Back</button><button type="button" id="play" class="primary" title="Play or pause (space)">▶ Play</button><button type="button" id="fwd" title="Next step (→)">Next ▶</button></div>
 <label class="speed">Speed <select id="speed"><option value="0.5">0.5×</option><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option></select></label>
 <ol class="ticks" id="ticks" aria-label="Steps"></ol></div>
 <noscript><p class="sub">The replay needs JavaScript. The same events are listed on <a href="index.html">the board</a>.</p></noscript>

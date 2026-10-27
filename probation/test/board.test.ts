@@ -94,4 +94,23 @@ describe('board', () => {
     expect(html).toContain(':root[data-theme="dark"]');
     expect(html).toContain('prefers-reduced-motion:no-preference');
   });
+
+  it('meets the audit (scripts/audit-pages.ts): forbidden text keeps contrast, the ledger scrolls by keyboard', () => {
+    const { ledger } = applyEvent(emptyLedger(), policy, {
+      agent: 'undertaker',
+      zones: ['legacy'],
+      event: 'survived_soak',
+      ref: { mr: 3 },
+    });
+    const html = renderBoard(ledger, policy, '2026-10-27T03:00:00Z');
+    expect(html).toContain('<html lang="en">');
+    // Card opacity dimmed the forbidden zone's text to 2.5:1; the border carries the 60% instead.
+    expect(html).not.toMatch(/\.zone\.forbidden\{[^}]*opacity/);
+    expect(html).toContain('border-top-color:color-mix(in srgb,var(--muted) 60%,transparent)');
+    expect(html).toContain(
+      '<div class="table-wrap" role="region" aria-label="Ledger, last 30 events" tabindex="0">',
+    );
+    expect(html).toContain('a:focus-visible,.table-wrap:focus-visible{outline:2px solid var(--ink)');
+    expect(html).toMatch(/<svg class="chart"[^>]* role="img" aria-label="[^"]+"/);
+  });
 });

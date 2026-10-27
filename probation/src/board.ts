@@ -178,7 +178,9 @@ h1{font:600 40px/1.1 Fraunces,Georgia,serif;margin:0}h2{font:600 22px/1.2 Fraunc
 .spark-label{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;margin-top:4px}
 .zones{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
 .zone{border:1px solid var(--line);border-top:4px solid var(--muted);background:var(--card);padding:10px 12px;border-radius:6px;--lc:var(--muted)}
-.zone.assisted{border-top-color:var(--assisted);--lc:var(--assisted)}.zone.supervised{border-top-color:var(--supervised);--lc:var(--supervised)}.zone.hands_off{border-top-color:var(--hands);--lc:var(--hands)}.zone.forbidden{opacity:.6;border-top-style:dashed}
+.zone.assisted{border-top-color:var(--assisted);--lc:var(--assisted)}.zone.supervised{border-top-color:var(--supervised);--lc:var(--supervised)}.zone.hands_off{border-top-color:var(--hands);--lc:var(--hands)}
+/* Forbidden recedes through a 60% dashed rule and muted text, not card opacity, so its text keeps 4.5:1. */
+.zone.forbidden{border-top-style:dashed;border-top-color:color-mix(in srgb,var(--muted) 60%,transparent)}.zone.forbidden .zn,.zone.forbidden .sc{color:var(--muted)}
 .zn{font-weight:600}.lvl{font-size:12px;color:var(--lc);font-weight:600}.zone.forbidden .lvl{color:var(--muted)}.sc{font-variant-numeric:tabular-nums}
 .meter{height:3px;background:var(--line);border-radius:2px;margin:8px 0 6px;overflow:hidden}.meter i{display:block;height:100%;background:var(--lc)}
 .nx{font-size:12px;line-height:16px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -193,6 +195,7 @@ h1{font:600 40px/1.1 Fraunces,Georgia,serif;margin:0}h2{font:600 22px/1.2 Fraunc
 .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--card)}
 table{width:100%;border-collapse:collapse;min-width:640px}td,th{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{color:var(--muted);font-weight:400;font-size:12px}
 .num{text-align:right;font-variant-numeric:tabular-nums}.pos{color:var(--hands)}.neg{color:var(--bad)}a{color:inherit}
+a:focus-visible,.table-wrap:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .graves{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
 .grave{background:var(--card);border:1px solid var(--line);border-radius:90px 90px 6px 6px;padding:28px 16px 16px;text-align:center}
 .grave.exhumed{border-color:var(--bad)}.rip{font:600 15px Fraunces,Georgia,serif;letter-spacing:.12em;color:var(--muted)}.grave.exhumed .rip{color:var(--bad)}
@@ -216,7 +219,7 @@ footer{margin-top:48px;color:var(--muted);font-size:12px}
 <div class="legend">${touched.map((z, i) => `<span><i style="background:var(${['--hands', '--supervised', '--assisted', '--muted'][i % 4]})"></i>${esc(z)}</span>`).join('')}</div>
 <h2>Graveyard</h2>${graves ? `<div class="graves">${graves}</div>` : '<p class="sub">No graves yet. The census has not found anything dead, or Undertaker has not been allowed to dig.</p>'}
 <h2>Nine stages, one lifecycle</h2><ol class="stages">${stages}</ol>
-<h2>Ledger</h2>${events ? `<div class="table-wrap"><table><thead><tr><th>When (UTC)</th><th>Zone</th><th>Event</th><th class="num">Pts</th><th class="num">Score</th><th>Level</th><th>MR</th></tr></thead><tbody>${events}</tbody></table></div>` : '<p class="sub">No scored events yet.</p>'}
+<h2>Ledger</h2>${events ? `<div class="table-wrap" role="region" aria-label="Ledger, last 30 events" tabindex="0"><table><thead><tr><th>When (UTC)</th><th>Zone</th><th>Event</th><th class="num">Pts</th><th class="num">Score</th><th>Level</th><th>MR</th></tr></thead><tbody>${events}</tbody></table></div>` : '<p class="sub">No scored events yet.</p>'}
 <footer>Generated ${generatedAt.slice(0, 16).replace('T', ' ')} UTC from the <code>ledger</code> branch. Every row is also in <code>audit.jsonl</code>.</footer>
 </main></body></html>`;
 }

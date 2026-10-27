@@ -63,6 +63,13 @@ describe('tallybook', () => {
     const res = await app.inject('/');
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.body).toContain('Northwind Bakery');
+    // Accessibility audit (scripts/audit-pages.ts): the table scrolls in a keyboard-reachable region on phones.
+    expect(res.body).toContain('<html lang="en">');
+    expect(res.body).toContain('<main>');
+    expect(res.body).toContain(
+      '<div class="table-wrap" role="region" aria-label="Invoices" tabindex="0"><table><thead>',
+    );
+    expect(res.body).toContain('color-scheme:dark');
   });
 
   it('serves the monthly accounting export', async () => {

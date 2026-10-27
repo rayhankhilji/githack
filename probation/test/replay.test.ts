@@ -90,6 +90,22 @@ describe('replay', () => {
     expect(html).not.toContain('innerHTML');
   });
 
+  it('meets the audit (scripts/audit-pages.ts): names, live status and contrast', () => {
+    const html = renderReplay(story(), policy);
+    expect(html).toContain('<p class="sr" id="status" role="status" aria-live="polite">');
+    expect(html).toMatch(/<svg class="chart" id="chart"[^>]* role="img" aria-label="[^"]+"/);
+    // Step ticks: the accessible name starts with the visible label ("Start", "!3", "End").
+    expect(html).toContain("said.startsWith(b.textContent) ? said : b.textContent + ': ' + said");
+    // Play's label already says Play or Pause; aria-pressed on top would read "Pause, pressed".
+    expect(html).not.toContain('aria-pressed');
+    // Undug plots are blank on screen and hidden from screen readers until the story reaches them.
+    expect(html).toContain("d.setAttribute('aria-hidden', 'true')");
+    // Tick labels keep full --muted contrast (no opacity on the tick), captions lift level colors on --paper.
+    expect(html).not.toMatch(/\.tick\{[^}]*opacity/);
+    expect(html).toContain('[class^="k-"]{color:color-mix(in srgb,var(--k) 90%,var(--ink))}');
+    expect(html).toContain('button:focus-visible,select:focus-visible{outline:2px solid var(--ink)');
+  });
+
   it('carries light and dark tokens with data-theme overrides', () => {
     const html = renderReplay(story(), policy);
     expect(html).toContain('@media (prefers-color-scheme:dark){:root:not([data-theme="light"])');
