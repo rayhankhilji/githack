@@ -96,3 +96,13 @@ ffmpeg -i docs/media/demo-rough-cut.mp4 -i live-soak.mp4 -filter_complex \
 ```
 
 Scene boundaries are exact to 0.1 s: the script prints them when it finishes. Keep any live footage you have; the rough cut only fills the gaps.
+
+### Narrated rough cut
+
+`docs/media/demo-rough-cut-narrated.mp4` is the same video with an AI voice-over (Piper TTS, voice `en_US-ryan-high`). Each caption cue in `docs/media/demo-rough-cut.srt` is spoken from its start time. A line longer than its cue is sped up by at most 1.25× and never runs into the next cue. Cues 24–25 (the nine stages) are one sentence, so they are spoken as one clip across both windows. The track is normalised to -16 LUFS and muxed with the video stream copied. Re-render it after any change to the rough cut. The Piper setup and the `TTS_CMD` variable are described at the top of `scripts/narrate-video.ts`:
+
+```bash
+TTS_CMD='piper -m en_US-ryan-high.onnx -f "$OUT" 2>/dev/null' node scripts/narrate-video.ts
+```
+
+The script prints a fit table per cue and fails if any line would overlap the next cue. Upload this file as the submission video when no live narrated recording exists.
