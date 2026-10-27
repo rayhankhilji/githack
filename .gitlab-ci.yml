@@ -261,7 +261,8 @@ pages:
       optional: true
   script:
     # Before live runs exist (no project token yet), publish the offline rehearsal ledger; the board says so.
-    - if [ -z "$GITLAB_PROBATION_TOKEN" ]; then node scripts/mock-flow.ts && export LEDGER_FILE=.out/mock-ledger.json BOARD_REHEARSAL=1; fi
+    # mock-flow on its own line so a failure fails the job (errexit skips commands inside an && list).
+    - if [ -z "$GITLAB_PROBATION_TOKEN" ]; then node scripts/mock-flow.ts; export LEDGER_FILE=.out/mock-ledger.json BOARD_REHEARSAL=1; fi
     - npm run board -- --out public/index.html
   artifacts:
     paths: [public]

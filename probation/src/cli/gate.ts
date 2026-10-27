@@ -11,6 +11,14 @@ import { env, gitlab, ledgerStore, main, writeOut } from './common.ts';
 main(async () => {
   const policy = loadPolicy();
   const [agentName, agent] = Object.entries(policy.agents)[0];
+  // Before setup (docs/RUNBOOK.md) there is no bot token: nothing can be labelled or auto-merged, so pass quietly
+  // instead of failing every MR pipeline. The gate never merges anything in this state.
+  if (!env.GITLAB_PROBATION_TOKEN) {
+    console.log(
+      'probation:gate: GITLAB_PROBATION_TOKEN is not set (docs/RUNBOOK.md); no decision, nothing auto-merges.',
+    );
+    return;
+  }
   const gl = gitlab();
   const iid = Number(env.CI_MERGE_REQUEST_IID);
   if (!iid) throw new Error('probation:gate must run in a merge request pipeline');
