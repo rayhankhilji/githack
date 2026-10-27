@@ -198,24 +198,27 @@ describe('npm run demo, end to end', TIMEOUT, () => {
       diffs: [],
     });
     mr.head_pipeline_id = p.id;
+    p.sha = mr.sha;
     // A newer Supervised MR is not the one to approve.
     createMr(s, { title: 'Bury moment', labels: ['undertaker', 'probation::supervised'], diffs: [] });
 
     const waiting = await demo(fake, 'approve');
     expect(waiting.code).toBe(1);
     expect(waiting.stdout).toContain('!1 Draft: Bury POST /api/fax-invoice');
-    expect(waiting.stdout).toContain('✅ approved');
-    expect(waiting.stdout).toMatch(/not merging: !1's pipeline is running/);
+    expect(waiting.stdout).not.toContain('✅ approved');
+    expect(waiting.stdout).toMatch(/not approving or merging: !1's pipeline is running/);
     expect(mr.state).toBe('opened');
-    expect(s.approvals).toEqual([{ iid: 1, username: 'owner' }]);
+    // No approval is left behind on an MR that is not merged.
+    expect(s.approvals).toEqual([]);
 
     p.status = 'success';
     const r = await demo(fake, 'approve');
     expect(r.code, r.stdout + r.stderr).toBe(0);
-    expect(r.stdout).toContain('✅ approved (already, by you)');
+    expect(r.stdout).toContain('✅ approved');
+    expect(s.approvals).toEqual([{ iid: 1, username: 'owner' }]);
     expect(r.stdout).toContain('✅ marked ready');
     expect(r.stdout).toContain('✅ merged');
-    expect(r.stdout).toContain('npm run demo -- watch --new');
+    expect(r.stdout).toMatch(/npm run demo -- watch --after \d+/);
     expect(mr.state).toBe('merged');
     expect(s.merges).toEqual([
       expect.objectContaining({ iid: 1, sha: mr.sha, should_remove_source_branch: true }),
@@ -228,9 +231,11 @@ describe('npm run demo, end to end', TIMEOUT, () => {
     const p = addPipeline(s, { status: 'failed', source: 'merge_request_event' });
     const mr = createMr(s, { title: 'Bury auth', labels: ['undertaker', 'probation::assisted'], diffs: [] });
     mr.head_pipeline_id = p.id;
+    p.sha = mr.sha;
     const r = await demo(fake, 'approve');
     expect(r.code).toBe(1);
-    expect(r.stdout).toMatch(/not merging: !1's pipeline failed \(gate blocked/);
+    expect(r.stdout).toMatch(/not approving or merging: !1's pipeline failed \(gate blocked/);
+    expect(fake.state.approvals).toEqual([]);
     expect(mr.state).toBe('opened');
   });
 

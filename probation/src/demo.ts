@@ -141,6 +141,12 @@ export type MergePlan = { merge: true } | { merge: false; reason: string };
 export function mergePlan(mr: MergeRequestDetail): MergePlan {
   const p = mr.head_pipeline;
   if (!p) return { merge: false, reason: `!${mr.iid} has no pipeline yet; wait for probation:gate` };
+  // Right after a push, head_pipeline can still be the previous commit's: only trust a pipeline for this sha.
+  if (p.sha && mr.sha && p.sha !== mr.sha)
+    return {
+      merge: false,
+      reason: `!${mr.iid}'s pipeline for the latest commit has not started yet: ${p.web_url}`,
+    };
   if (p.status === 'success') return { merge: true };
   if (FINISHED.has(p.status))
     return {

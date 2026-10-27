@@ -111,6 +111,12 @@
 - **Tests:** `npm run check` green; docs check 0 errors; docs validator 0 errors.
 - **Next:** Rayhan runs `npm run gitlab:setup` → `npm run doctor` → RUNBOOK §2–5.
 
+### 2026-10-27 — Session 5 review fixes (WS13)
+- `demo approve` decides before approving (no stray approvals), checks that the head pipeline is for the MR's latest commit, and prints `watch --after <ID>`, so watch can't miss the post-merge pipeline.
+- `watch --interval` floor is 1 s; the replay tick mark has a fallback colour where `color-mix` isn't supported.
+- RUNBOOK: `promote` is needed for every level except Hands-off; act 4 starts `watch --new` before the merge.
+- **Tests:** 142 passed; check-docs 0 errors.
+
 ## Completed Phases
 
 None yet.

@@ -137,11 +137,11 @@ Delete `k.json` afterwards.
 |---|---|
 | `npm run demo -- status` | One screen: ledger score and level per zone, 🪦 issues by `undertaker::` label, open Undertaker MRs (level label, pipeline), the latest `main` pipeline and its release child with every job's status, and the next step |
 | `npm run demo -- dig [--issue N] [--force]` | Plays the "Probation census + dig + sweep" schedule and prints the pipeline URL. With `--issue N` it first checks that dig would pick #N; if not, it lists the candidates ahead of #N and stops (`--force` plays anyway). It never relabels issues |
-| `npm run demo -- approve` | Act 1 and 5: approves the newest open MR labelled `probation::assisted`, marks it ready and merges it, but only if its pipeline succeeded |
-| `npm run demo -- promote` | Act 2 and 3: plays `approve:production` in the newest release child pipeline when it is `manual` |
-| `npm run demo -- watch [--new] [--timeout 900]` | Follows the release child pipeline (polls every 15 s), prints job transitions, the `soak:canary` / `soak:canary-signal` verdict lines and the ledger change after settle. Exits 0 when released, 1 on a rollback. Use `--new` right after a merge so it waits for the new `main` pipeline and ignores the previous release |
+| `npm run demo -- approve` | Acts 1 and 5 (Assisted): approves the newest open MR labelled `probation::assisted`, marks it ready and merges it, but only if its pipeline succeeded |
+| `npm run demo -- promote` | Acts 1, 2, 3 and 5 (everything except Hands-off): plays `approve:production` in the newest release child pipeline when it is `manual` |
+| `npm run demo -- watch [--after ID \| --new] [--timeout 900]` | Follows the release child pipeline (polls every 15 s), prints job transitions, the `soak:canary` / `soak:canary-signal` verdict lines and the ledger change after settle. Exits 0 when released, 1 on a rollback. `approve` prints the exact `--after ID` to use. `--new` ignores every pipeline that already exists, so start it *before* the merge happens (act 4: as soon as Undertaker's MR opens) |
 
-A typical act: `status` → `dig --issue N` → (Undertaker opens the MR) → `approve` (Assisted) → `watch --new` → `promote` in a second terminal when watch shows ✋ (Supervised) → `status`. For act 4, run only `watch --new`.
+A typical act: `status` → `dig --issue N` → (Undertaker opens the MR) → `approve` (Assisted) or wait for the gate's auto-merge (Supervised) → `watch --after <ID>` → `promote` in a second terminal when watch shows ✋ (every level except Hands-off) → `status`. For act 4 (Hands-off), start `watch --new` as soon as the MR opens, before the gate merges it.
 
 **If the Flows API refuses** (`undertaker:dig` fails with 403 or 400), assign the candidate issue to the `ai-undertaker-*` service account yourself. That is the assign trigger, one click per act; mention it honestly in the video as "kicked off by assigning the issue".
 

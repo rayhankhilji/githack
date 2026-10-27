@@ -204,19 +204,26 @@ async function approve(ctx: Ctx): Promise<void> {
   }
   const mr = pick.mr;
   console.log(`🧑‍⚖️ !${mr.iid} ${mr.title}\n   ${mr.web_url}`);
+  // Decide first: never leave an approval behind on an MR we are not going to merge.
+  const plan = mergePlan(mr);
+  if (!plan.merge) {
+    console.log(`⚠️  not approving or merging: ${plan.reason}`);
+    process.exitCode = 1;
+    next('npm run demo -- approve again once the pipeline succeeds');
+    return;
+  }
   const approvals = await ctx.gl.mrApprovals(mr.iid);
   if (approvals.user_has_approved) console.log('✅ approved (already, by you)');
   else {
     await ctx.gl.approveMr(mr.iid, mr.sha);
     console.log('✅ approved');
   }
-  const plan = mergePlan(mr);
-  if (!plan.merge) {
-    console.log(`⚠️  not merging: ${plan.reason}`);
-    process.exitCode = 1;
-    next('npm run demo -- approve again once the pipeline succeeds');
-    return;
-  }
+  // The newest main pipeline before the merge: watch follows the first one after it.
+  const before = releaseParent(
+    await ctx.gl.listPipelines(
+      `ref=${encodeURIComponent(ctx.defaultBranch)}&order_by=id&sort=desc&per_page=20`,
+    ),
+  );
   if (mr.draft) {
     // Same as clicking "Mark as ready": a draft cannot merge.
     await ctx.gl.updateMr(mr.iid, { title: mr.title.replace(/^(Draft:|\[Draft\]|\(Draft\))\s*/i, '') });
@@ -224,7 +231,7 @@ async function approve(ctx: Ctx): Promise<void> {
   }
   const merged = await ctx.gl.acceptMr(mr.iid, mr.sha);
   console.log(`✅ merged (state: ${merged.state})`);
-  next('npm run demo -- watch --new   (main pipeline → release child → soak → settle)');
+  next(`npm run demo -- watch --after ${before?.id ?? 0}   (main pipeline → release child → soak → settle)`);
 }
 
 // ---------- promote ----------
@@ -260,12 +267,12 @@ async function promote(ctx: Ctx): Promise<void> {
 
 async function watch(ctx: Ctx): Promise<void> {
   const timeoutS = numberOption('timeout', 900);
-  const intervalMs = numberOption('interval', 15) * 1000;
+  const intervalMs = Math.max(1, numberOption('interval', 15)) * 1000;
   const deadline = Date.now() + timeoutS * 1000;
   const ledgerBefore = await loadLedger(ctx);
   // --new: ignore pipelines that already exist (right after a merge the new main pipeline lags by seconds).
-  let afterId = 0;
-  if (hasFlag('new')) {
+  let afterId = numberOption('after', 0);
+  if (!afterId && hasFlag('new')) {
     const latest = await ctx.gl.listPipelines(
       `ref=${encodeURIComponent(ctx.defaultBranch)}&order_by=id&sort=desc&per_page=20`,
     );

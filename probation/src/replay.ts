@@ -266,7 +266,7 @@ code{font-family:inherit;overflow-wrap:anywhere}
 .fill{width:100%;background:var(--lc);transform-origin:0 50%;transform:scaleX(0)}
 .lost{background:var(--bad);opacity:0}.lost.on{opacity:.9}
 /* The tick is faded through its color, not opacity, so its label keeps full --muted contrast. */
-.tick{position:absolute;top:-.3rem;bottom:-.3rem;width:2px;background:color-mix(in srgb,var(--ink) 55%,transparent)}
+.tick{position:absolute;top:-.3rem;bottom:-.3rem;width:2px;background:var(--muted);background:color-mix(in srgb,var(--ink) 55%,transparent)}
 .tick span{position:absolute;top:1.5rem;left:0;transform:translateX(-50%);white-space:nowrap;font-size:.8rem;color:var(--muted)}
 .tick.end span{transform:translateX(-100%)}
 .stamp{align-self:flex-start;margin-top:auto;border:.2rem solid var(--bad);color:var(--bad);background:var(--card);font-weight:600;font-size:1.35rem;letter-spacing:.08em;text-transform:uppercase;padding:.3rem .8rem;border-radius:6px;transform:rotate(-6deg);opacity:0;pointer-events:none}

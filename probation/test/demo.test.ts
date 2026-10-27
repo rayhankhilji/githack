@@ -95,9 +95,12 @@ describe('demo conductor decisions', () => {
     expect(pickAssistedMr([mr(5, ['undertaker'])]).message).toContain('probation:gate has not run');
     expect(pickAssistedMr([]).message).toBe('no open Undertaker MR');
 
-    expect(mergePlan(mr(1, [], pipeline(2, 'success')))).toEqual({ merge: true });
-    expect(mergePlan(mr(1, [], pipeline(2, 'running')))).toMatchObject({ merge: false });
-    expect(mergePlan(mr(1, [], pipeline(2, 'failed')))).toMatchObject({
+    const head = (status: string) => ({ ...pipeline(2, status), sha: 'head1' });
+    expect(mergePlan(mr(1, [], head('success')))).toEqual({ merge: true });
+    // A head pipeline for an older commit is not evidence for this one.
+    expect(mergePlan(mr(1, [], pipeline(2, 'success')))).toMatchObject({ merge: false });
+    expect(mergePlan(mr(1, [], head('running')))).toMatchObject({ merge: false });
+    expect(mergePlan(mr(1, [], head('failed')))).toMatchObject({
       merge: false,
       reason: expect.stringContaining('gate blocked'),
     });
