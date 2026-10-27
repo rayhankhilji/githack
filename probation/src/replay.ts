@@ -632,7 +632,7 @@ export function renderReplay(ledger: Ledger, policy: Policy, generatedAt = new D
 <link rel="icon" type="image/svg+xml" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
 <style>${STYLE}</style></head><body><main class="wrap">
-<div class="head"><span>Probation + Undertaker · ledger replay</span><a href="index.html">← The board</a></div>
+<div class="head"><span>Probation + Undertaker · ledger replay</span><span><a href="index.html">← The board</a> · <a href="playground.html">Try the gate</a></span></div>
 <h1>In the matter of ${esc(agent)}</h1>
 <p class="sub">Every scored event on the ledger${evs > 0 ? ` (${evs})` : ''}, replayed in order. Rules: <code>probation/policy.yml</code>.</p>
 ${body}

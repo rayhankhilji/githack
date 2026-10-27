@@ -1,10 +1,11 @@
 // mock-flow — plays the whole Probation story locally, with no GitLab, GCP or credits:
 // census → Undertaker MRs → gate → production soak → ledger → board.
-// Usage: npm run demo:mock   (writes .out/mock-ledger.json and .out/board.html)
+// Usage: npm run demo:mock   (writes .out/mock-ledger.json, board.html, replay.html and playground.html)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { renderBoard } from '../probation/src/board.ts';
 import { decide, label } from '../probation/src/gate.ts';
 import { applyEvent, emptyLedger, type Ledger } from '../probation/src/ledger.ts';
+import { buildPlayground } from '../probation/src/playground.ts';
 import { loadPolicy } from '../probation/src/policy.ts';
 import { renderReplay } from '../probation/src/replay.ts';
 
@@ -153,4 +154,6 @@ writeFileSync('.out/mock-ledger.json', `${JSON.stringify(ledger, null, 2)}\n`);
 writeFileSync('.out/board.html', renderBoard(ledger, policy));
 // The board links to replay.html, so write it alongside.
 writeFileSync('.out/replay.html', renderReplay(ledger, policy, new Date().toISOString()));
-console.log('wrote .out/mock-ledger.json, .out/board.html and .out/replay.html');
+// The gate playground runs the real gate in the browser against this ledger's scores.
+writeFileSync('.out/playground.html', await buildPlayground(policy, ledger));
+console.log('wrote .out/mock-ledger.json, .out/board.html, .out/replay.html and .out/playground.html');

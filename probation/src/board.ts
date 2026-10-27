@@ -214,7 +214,7 @@ footer{margin-top:48px;color:var(--muted);font-size:12px}
 <div class="stat"><b>${ledger.graveyard.filter((g) => g.status === 'exhumed').length}</b><span>rollbacks (exhumed)</span></div>
 <div class="stat"><b>${sciDelta === undefined ? '—' : pct(sciDelta)}</b><span>SCI change since first measurement${sciNow !== undefined ? ` (${sciNow.toFixed(4)} gCO₂e/1k req)` : ''}</span>${sciSparkline(hist)}</div>
 </div>
-<h2>Autonomy by zone</h2><div class="zones">${zoneCards}</div>
+<h2>Autonomy by zone <a class="replay" href="playground.html">⚖ Try the gate</a></h2><div class="zones">${zoneCards}</div>
 <h2>Trust over time <a class="replay" href="replay.html">▶ Replay the story</a></h2>${trustChart(ledger.events, policy, touched)}
 <div class="legend">${touched.map((z, i) => `<span><i style="background:var(${['--hands', '--supervised', '--assisted', '--muted'][i % 4]})"></i>${esc(z)}</span>`).join('')}</div>
 <h2>Graveyard</h2>${graves ? `<div class="graves">${graves}</div>` : '<p class="sub">No graves yet. The census has not found anything dead, or Undertaker has not been allowed to dig.</p>'}
