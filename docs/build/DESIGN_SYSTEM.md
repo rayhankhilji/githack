@@ -91,12 +91,15 @@ Numbers use `font-variant-numeric: tabular-nums`.
 1. Header: h1, then a one-paragraph explanation naming the policy file.
 2. Stats row: graves dug, lines removed, rollbacks, SCI change.
 3. Autonomy by zone: neutral zones are hidden.
-4. Trust over time.
+4. Trust over time, with a link to the ledger replay.
 5. Graveyard, newest first.
-6. Ledger, the last 30 events, newest first.
-7. Footer with the generation time.
+6. Nine stages, one lifecycle: what Probation runs in each DevSecOps stage.
+7. Ledger, the last 30 events, newest first.
+8. Footer with the generation time.
 - **Empty state:** "No graves yet…" and "No scored events yet." The chart is a flat axis.
 - **Error state:** the board is static, so a failed `pages` job keeps the last published version.
+
+**Ledger replay** (`public/replay.html`, F-07): the same ledger re-told one event at a time, linked from the board. Controls: play/pause, step, speed; keyboard space, ← and →, Home; `?autoplay=1&speed=1.5&theme=dark` query options. Steps are computed in `probation/src/replay.ts`; the inline script only animates, with motion behind `prefers-reduced-motion: no-preference`.
 
 **Tallybook dashboard** (`/`, F-08): title, outstanding totals per currency, and an invoice table with status pills. The optional holiday banner sits at the top behind `holidayBanner2024`. With no invoices, the outstanding line reads "Outstanding: nothing".
 

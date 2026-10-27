@@ -41,6 +41,8 @@ Cut the replay in hard (no transition) and narrate over it as written; its capti
 Regenerate after any change to the replay page or the mock story: `node scripts/record-replay.ts` (about 3 minutes; `--frames-only` for just the PNGs). It uses the globally installed Playwright + Chromium and the system `ffmpeg`. To show it live instead, open `replay.html?autoplay=1&speed=1.5` from the published board (space pauses, ← and → step).
 
 **Before recording:**
+- Run `npm run doctor` against the GitLab project; it must exit 0 before you spend credits on a live act.
+- Drive the live acts with `npm run demo -- status|dig|approve|promote|watch` (RUNBOOK §5) instead of clicking through GitLab.
 - Run `node scripts/render-media.ts` if a card or the board changed, so the PNGs match.
 - Run `npm run demo:mock` to rehearse the narration against `.out/board.html`.
 - Pre-open the tabs: the issue list, MR !n (one per act), the child pipeline logs, the board, the board's `replay.html`, and the Cloud Run revisions page.

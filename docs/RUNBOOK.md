@@ -105,7 +105,7 @@ Delete `k.json` afterwards.
 2. Expected:
    1. `verify:*` and the security jobs run;
    2. `package:image` (Cloud Build);
-   3. `release:run`, which starts a child pipeline: staging → approve (automatic for human commits) → canary → soak (3 min) → promote;
+   3. `release:run`, which starts a child pipeline: staging → approve (automatic for human commits) → canary → soak (3 min of synthetics in `soak:canary`, plus the canary's log signal in `soak:canary-logs` → `soak:canary-signal`) → promote, or `rollback:soak` / `rollback:production`;
    4. `govern:*`;
    5. `pages`.
 3. Tallybook URL: in the child pipeline's `deploy:staging` log, the `PRODUCTION_URL=` line. Check it with `curl <URL>/healthz`.

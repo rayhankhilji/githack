@@ -123,7 +123,7 @@ The point of the project: "code generation is solved, so what happens after?" Co
     1. deploy the revision with 0% traffic and a tag (staging);
     2. `approve:production` (manual unless Hands-off or human-authored);
     3. canary at 10%;
-    4. a soak of 3 minutes of synthetics (`probation/synthetics.yml`) against the tagged revision;
+    4. a soak of 3 minutes of synthetics (`probation/synthetics.yml`) against the tagged revision, plus a signal from the canary's own request logs: a 5xx rate above `soak.max_5xx_rate`, or 404s on unmatched routes above the previous revision's rate, fails it (a logging outage only warns);
     5. promote to 100%, or roll back to the previous revision and revert the commit;
     6. settle the score.
 - **States:** staging · awaiting approval · canary · soaking · promoted · rolled back.
@@ -131,7 +131,7 @@ The point of the project: "code generation is solved, so what happens after?" Co
   - F-05.AC1 — Given a Hands-off MR, Then `approve:production` is automatic and `settle:survived` exists.
   - F-05.AC2 — Given a Supervised MR, Then `approve:production` is manual.
   - F-05.AC3 — Given a human commit, Then it deploys but is never scored.
-  - F-05.AC4 — Given a synthetic returning 404 on the canary, Then the soak fails, which triggers rollback and `settle:rolled-back`.
+  - F-05.AC4 — Given a synthetic returning 404 on the canary, or canary logs with deleted-route 404s or 5xx above the threshold, Then the soak fails, which triggers rollback and `settle:rolled-back`.
 - **Dependencies:** Cloud Run, F-04.
 
 ### F-06 · Software Carbon Intensity per change — Priority: P0
@@ -148,7 +148,7 @@ The point of the project: "code generation is solved, so what happens after?" Co
 
 ### F-07 · Probation Board — Priority: P0
 - **User story:** As a judge or manager, I want one public page showing autonomy by zone, trust over time, the graveyard and the SCI trend so that the story is visible at a glance.
-- **Details:** a static GitLab Pages site rendered from the ledger by the `pages` job on main and schedule pipelines. It works in light and dark themes and at 390px width.
+- **Details:** a static GitLab Pages site rendered from the ledger by the `pages` job on main and schedule pipelines, with a ledger replay page (`replay.html`) that re-tells the story event by event. It works in light and dark themes and at 390px width.
 - **States:** empty ledger (explanatory empty states) · populated.
 - **Acceptance criteria:**
   - F-07.AC1 — Given a ledger with events and graves, Then the board renders zone cards (forbidden zones marked), the step chart, tombstones (titles escaped) and the ledger table.
@@ -182,7 +182,7 @@ The point of the project: "code generation is solved, so what happens after?" Co
 
 ### F-10 · Human-rejection sweep — Priority: P1
 - **User story:** As a platform lead, I want closed-without-merge agent MRs to cost trust so that sloppy proposals have consequences.
-- **Details:** during the schedule, score `human_rejected` for each Undertaker MR closed without merge that isn't yet in the ledger.
+- **Details:** during the schedule, score `human_rejected` for each Undertaker MR closed without merge that isn't yet in the ledger, and return `undertaker::in-progress` issues that no open or merged MR closes after `census.stale_hours` to `undertaker::candidate`.
 - **Acceptance criteria:**
   - F-10.AC1 — Given a closed, unmerged Undertaker MR, When the sweep runs, Then its zones get −20 once.
 

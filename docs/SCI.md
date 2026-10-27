@@ -47,6 +47,6 @@ SCI_DURATION=10 npm run sci -- --no-comment   # writes .out/sci.json and .out/sc
 ## Limits
 
 - **CPU-time watts are an estimate,** not a power meter. A CI runner is not the Cloud Run host.
-- **Deployable size counts the app layer only** (`src` + production `node_modules`), not the shared `node:22.23-slim` base layers every revision reuses. In this repo, `moment` and `lodash` alone are 10.4 MB of the 16 MB app layer.
+- **Deployable size counts the app layer only** (`du -sk app`: `src` + production `node_modules`, as disk usage), not the shared `node:22.23-slim` base layers every revision reuses. In this repo `moment` and `lodash` are 10.2 of those 25.9 MB; in the built image they are 5.9 of the 16.0 MB of `node_modules` file content, and removing them shrinks the uncompressed image from 360 to 348 MB (measured with Docker on 2026-10-27).
 - **Cold starts per 1k requests are an assumption.** It is tied to scale-to-zero and set in `sci-coefficients.yml`.
 - **Results are comparative.** The same mix runs on the same runner type for main and the MR, which is what the decision needs.

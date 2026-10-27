@@ -89,7 +89,7 @@ The deadline is **2026-10-27 13:00 UTC**. Each phase ends with something deploya
 
 - Multi-agent board (several agents on probation side by side).
 - Cloud Monitoring alert → issue (incident-driven census).
-- Error-rate soak signal from Cloud Logging in addition to synthetics.
+- Latency in the soak signal (the error-rate signal from Cloud Logging shipped as `soak:canary-signal`).
 
 ## Feature → Phase Map
 

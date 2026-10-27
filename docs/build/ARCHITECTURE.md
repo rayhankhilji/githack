@@ -26,7 +26,9 @@ flowchart LR
     MRP -->|auto-merge or wait for human| MAIN[main pipeline: package · release:plan]
     MAIN --> CHILD[child: staging → approve → canary → soak → promote/rollback → settle]
     CHILD -->|score| LB
-    LB --> PAGES[Pages: Probation Board]
+    CL -->|canary census lines| CHILD
+    LB --> PAGES[Pages: Probation Board + replay]
+    LB --> CLERK[Probation Clerk agent / MCP server]
   end
   CL --> CC
   MAIN --> AR --> CR
@@ -40,14 +42,14 @@ flowchart LR
 | Runtime | Node.js 22.18+ (native TypeScript type stripping) | No build step: the same `.ts` runs in tests, CI and the container |
 | Language | TypeScript 5.9 (`strict`, `erasableSyntaxOnly`) | Type safety without transpile-only syntax |
 | App framework | Fastify 5.6 | Route templates in `routeOptions.url` make census lines exact |
-| CLI libraries | `yaml` 2.8, `picomatch` 4.0, `autocannon` 8.0 | Policy parsing, zone globs, the SCI load mix |
+| CLI libraries | `yaml` 2.8, `picomatch` 4.0, `autocannon` 8.0, `@modelcontextprotocol/sdk` 1.32 + `zod` 4 | Policy parsing, zone globs, the SCI load mix, the read-only MCP server |
 | Tests | Vitest 3.2 | Fast, native ESM and TypeScript |
 | Lint and format | Biome 2.2 | One tool, zero config sprawl |
 | Agent platform | GitLab Duo Agent Platform custom flow (registry v1), AI Catalog | Required by the hackathon; flows run in GitLab with composite identity |
 | CI/CD | GitLab CI with a dynamic child pipeline for release; templates for SAST, Secret Detection and Dependency Scanning | Release shape depends on the gate's verdict |
 | Hosting | Cloud Run (us-central1), Artifact Registry, Cloud Build, Cloud Logging, Secret Manager | Revision tags and traffic splits give canary and rollback for free; +0.2 bonus |
 | GCP auth | Workload Identity Federation with a GitLab OIDC `id_tokens` (SA key fallback) | No long-lived keys in CI |
-| Board | Static HTML from `probation/src/board.ts` on GitLab Pages | Zero runtime, versioned with the ledger |
+| Board | Static HTML from `probation/src/board.ts` and `probation/src/replay.ts` on GitLab Pages | Zero runtime, versioned with the ledger |
 
 ## 3. Component Boundaries
 
@@ -58,9 +60,14 @@ flowchart LR
 | Gate | `probation/src/gate.ts` (pure), `cli/gate.ts` | Verdict per MR | Call an LLM |
 | Ledger | `probation/src/ledger.ts` (pure), `store.ts` | Scores, events, graveyard, security and SCI baselines | Rewrite history (append-only `audit.jsonl`) |
 | Census | `probation/src/census.ts`, `cli/census.ts` | Candidate detection, issues, `traffic.json` | Propose `policy.census.keep` routes or do-not-bury keys |
-| Release | `cli/release-plan.ts`, `ci/deploy.sh`, `cli/soak.ts`, `cli/settle.ts` | Child pipeline, canary, soak, rollback, scoring | Promote without a soak |
+| Release | `cli/release-plan.ts`, `ci/deploy.sh`, `cli/soak.ts`, `probation/src/soak-signal.ts` (pure), `cli/settle.ts` | Child pipeline, canary, soak (synthetics and the canary's log signal), rollback, scoring | Promote without a soak |
 | SCI | `probation/src/sci.ts`, `cli/sci.ts`, `sci-coefficients.yml` | Carbon measurement | Use undocumented coefficients |
-| Board | `probation/src/board.ts`, `cli/board.ts` | Public view | Read anything but the ledger and policy |
+| Board | `probation/src/board.ts`, `probation/src/replay.ts`, `cli/board.ts` | Public view: the board and the ledger replay (`replay.html`) | Read anything but the ledger and policy |
+| Sweep | `probation/src/sweep.ts` (pure), `cli/sweep.ts` | Scoring human rejections; returning stale in-progress graves to the pool | Score the same MR twice |
+| Probation Clerk | `agents/probation-clerk.yml` (AI Catalog) | Answering "why is this zone Assisted?" in Duo Chat from the policy and ledger | Write anything (read-only tools) |
+| MCP server | `mcp/probation-server.ts`, `mcp/tools.ts` | `get_trust`, `list_graves`, `explain_gate`, `policy` for Duo Agentic Chat | Write anything |
+| Setup and demo | `probation/src/setup.ts`, `probation/src/demo.ts` (pure), `scripts/gitlab-setup.ts`, `scripts/doctor.ts`, `scripts/demo.ts` | Project labels, schedule, protected tag, MR settings; preflight; driving live demo acts | Print a token or variable value |
+| Docs check | `probation/src/doccheck.ts`, `scripts/check-docs.ts`, `probation/test/docs.test.ts` | Links, paths, job names, scripts and policy numbers in the Markdown docs | Pass with a stale doc |
 | Undertaker | `flows/undertaker.yml` (AI Catalog) | Investigation, the deletion MR, self-review | Merge, deploy, or touch forbidden zones |
 | GitLab client | `probation/src/gitlab.ts` | REST calls with retry on 429/5xx | Be used outside CLIs |
 
@@ -147,6 +154,9 @@ Conventions:
 | listIssues / createIssue / updateIssue | `…/issues` | census, dig, settle | F-01, F-09, F-04 |
 | getFile / branchExists / commit | `…/repository/files`, `…/branches`, `…/commits` | ledger store, census, replay | F-04, F-01 |
 | startFlow | `POST /api/v4/ai/duo_workflows/workflows` `{project_id, goal, ai_catalog_item_consumer_id, start_workflow:true, issue_id}` (user PAT) | dig | F-09 |
+| listMrs | `GET …/merge_requests` | sweep, demo | F-10 |
+| project setup: labels, pipeline schedules, protected tags, project settings, variables (read names only), Pages, token self | `…/labels`, `…/pipeline_schedules`, `…/protected_tags`, `PUT /projects/:id`, `…/variables`, `…/pages`, `/personal_access_tokens/self` | `gitlab:setup`, `doctor` | P0.T9 |
+| demo driver: MR approve and accept, pipelines, jobs, play, trace | `…/approve`, `…/merge`, `…/pipelines`, `…/jobs/:id/play`, `…/jobs/:id/trace` | `demo` | RUNBOOK §5 |
 
 Errors: any non-2xx throws `GitLab <METHOD> <path> → <status>: <body>`. 429 and 5xx are retried 3 times with backoff of 2, 4 and 8 seconds.
 
@@ -170,16 +180,17 @@ Errors: any non-2xx throws `GitLab <METHOD> <path> → <status>: <body>`. 429 an
       1. `deploy:staging` (0% traffic, tag `rc-<sha>`, dotenv URLs);
       2. `approve:production`;
       3. `deploy:canary` (10%);
-      4. `soak:canary` (synthetics every 15 s for `SOAK_MINUTES`), in parallel with `soak:canary-logs` (after the soak window, `gcloud logging read` of census lines for `$REVISION`, plus `$PREVIOUS_REVISION` as a same-window baseline) → `soak:canary-signal`. The signal fails on a 5xx rate above `soak.max_5xx_rate` (≥ 20 requests) or on unmatched 404s beyond the baseline rate plus a 3σ allowance (a client hitting a deleted route). A logging outage is a warning, never a rollback;
+      4. `soak:canary` (synthetics every 15 s for `SOAK_MINUTES`; if it fails, `rollback:soak` takes traffic off the canary immediately), in parallel with `soak:canary-logs` (after the soak window, `gcloud logging read` of census lines for `$REVISION`, plus `$PREVIOUS_REVISION` as a same-window baseline) → `soak:canary-signal`. The signal fails on a 5xx rate above `soak.max_5xx_rate` (≥ 20 requests) or on unmatched 404s beyond the baseline rate plus a 3σ allowance (a client hitting a deleted route). A logging outage is a warning, never a rollback;
       5. `promote:production` or `rollback:production`;
       6. `settle:survived` or `settle:rolled-back` (ledger write, promotion or demotion issue, revert commit, candidate close or do-not-bury).
 5. **Govern (F-04, F-07).** `govern:baseline` stores security fingerprints, `govern:release-notes` creates a GitLab Release, and `pages` renders the board. On the schedule, `probation:sweep` scores human rejections and returns `undertaker::in-progress` issues that no open or merged MR closes after `census.stale_hours` (6 h) to `undertaker::candidate`.
 
 ## 7. Frontend Architecture
 
-Two server-rendered pages, with no client JS framework:
+Three server-rendered pages, with no client JS framework:
 - The **Tallybook dashboard** (`app/src/routes/ui.ts`): inline CSS, light and dark through `prefers-color-scheme`.
 - The **Probation Board** (`probation/src/board.ts`): static HTML with an inline SVG step chart, built by the `pages` job.
+- The **ledger replay** (`probation/src/replay.ts`, `replay.html` next to the board): the story re-told event by event. The steps are computed in TypeScript; a small inline script only animates between them.
 
 Both screens are specified in DESIGN_SYSTEM §9.
 
@@ -200,6 +211,7 @@ Both screens are specified in DESIGN_SYSTEM §9.
 |---|---|---|---|---|
 | `census:collect` → `census:file` | Pipeline schedule, nightly 02:17 UTC (more often for the demo) | 10 min | GitLab job retry 0 | Issues deduplicated by key marker; `traffic.json` overwritten |
 | `undertaker:dig` | Same schedule, after the census | 5 min | none | Skips issues labelled in-progress or do-not-bury |
+| `probation:sweep` | Same schedule, after the census | 5 min | none | A prior `human_rejected` event for the MR makes it a no-op |
 | `pages` | main and schedule | 5 min | none | Full re-render |
 | `settle:*` | Release child pipeline | 5 min | none | Re-running double-scores. Never retry settle manually; fix the ledger by appending a compensating event |
 
@@ -258,7 +270,7 @@ flowchart LR
 ## 13. Deployment & Infrastructure
 
 - **One-time setup:** `infra/gcp-bootstrap.sh` enables APIs and creates the Artifact Registry repo, the deployer SA with roles, the WIF pool and provider, and the API-key secret.
-- **Every release:** Cloud Build builds `app/Dockerfile` (`node:22-slim`, production dependencies, `node src/index.ts`). `deploy.sh staging` creates a no-traffic tagged revision, then the release moves through canary → promote, or rollback to the previous revision.
+- **Every release:** Cloud Build builds `app/Dockerfile` (`node:22.23-slim`, production dependencies only, runs `node src/index.ts` as the unprivileged `node` user). `deploy.sh staging` creates a no-traffic tagged revision, then the release moves through canary → promote, or rollback to the previous revision.
 - **Rollback:**
   - automatic (soak failure) or manual (rerun `rollback:production`);
   - code is reverted through the API by `settle:rolled-back`;
@@ -268,7 +280,7 @@ flowchart LR
 ## 14. Observability
 
 - **Cloud Logging:** census lines per request, used by the census.
-- **Soak:** `.out/soak.json` artifact with every synthetic result.
+- **Soak:** `.out/soak.json` (every synthetic result) and `.out/soak-signal.json` (the canary's 5xx rate and unmatched 404s versus the baseline) artifacts.
 - **MR notes:** gate decision, SCI table, coroner report.
 - **Ledger and board:** long-term trend.
 - **Flow sessions:** visible under the project's Automate / Agent sessions.
@@ -282,5 +294,5 @@ The census reads at most 50,000 log entries per run (raise `--limit` or aggregat
 - **ADR-1:** the gate is deterministic code, not an agent. Autonomy must not depend on model judgement.
 - **ADR-2:** trust is per zone, and the minimum across touched zones applies. Hands-off in `legacy` must not grant Hands-off in `routes`.
 - **ADR-3:** the ledger lives on a git branch. It is free, auditable, diffable and needs no database. Commits are marked `[skip ci]`, and the workflow ignores that branch.
-- **ADR-4:** the soak runs synthetics against the tagged revision, independent of the census. The census can be wrong about periodic clients; the soak is the backstop.
+- **ADR-4:** the soak runs synthetics against the tagged revision, independent of the census, plus a signal from the canary's own request logs. The census can be wrong about periodic clients; the soak is the backstop.
 - **ADR-5:** `coding_environment: none` for the flow. Fewer moving parts and lower cost and carbon per run.

@@ -10,6 +10,7 @@
 - ✏️ Tallybook on Cloud Run
 - ✏️ Probation Board (GitLab Pages)
 - ✏️ YouTube video (under 3 minutes)
+- ✏️ Ledger replay (`replay.html` on the Pages site; a 30-second recording is in `docs/media/replay.webm`)
 
 ## What it does
 
@@ -27,7 +28,7 @@ We built both halves of the answer on GitLab:
 - The agent can't merge, can't touch auth, CI or its own policy, can't add code and can't add or edit tests. The gate enforces all of it in TypeScript, not in a prompt, and `policy.yml` is protected by CODEOWNERS.
 - A **Probation Clerk** custom Duo agent (an AI Catalog item) answers "why is the routes zone still Assisted?" in Duo Chat by reading `policy.yml` and the ledger branch, citing the MRs behind each score. It is read-only. A probation MCP server exposes the same answers (`get_trust`, `list_graves`, `explain_gate`, `policy`) to Duo Agentic Chat in the IDE.
 
-**In the demo, Undertaker climbs from Assisted to Hands-off, then breaks a monthly partner export.** It buries `GET /api/v1/export.csv` (zero hits in seven days). The bookkeeping partner calls it on the 1st of each month. During the canary soak, that partner's synthetic check returns 404. Traffic rolls back, the commit is reverted, Undertaker drops to Assisted, and the grave is marked do-not-bury forever. Autonomy you can earn, and lose.
+**In the demo, Undertaker climbs from Assisted to Hands-off, then breaks a monthly partner export.** It buries `GET /api/v1/export.csv` (zero hits in seven days). The bookkeeping partner calls it on the 1st of each month. During the canary soak, that partner's synthetic check returns 404 (and the canary's own request logs show the hit on a deleted route). Traffic rolls back, the commit is reverted, Undertaker drops to Assisted, and the grave is marked do-not-bury forever. Autonomy you can earn, and lose.
 
 ## How we built it
 
@@ -37,8 +38,9 @@ We built both halves of the answer on GitLab:
 - **The gate is code.** `probation/src/gate.ts` is a pure function of the policy, the ledger and the MR diff. It returns one of four verdicts, posts a note that cites the rule file, labels the MR `probation::<level>` and `zone::<zones>`, and sets auto-merge when the level allows it.
 - **The release pipeline is generated.** On main, `release:plan` writes a child pipeline whose shape depends on the verdict: at Supervised it contains a manual `approve:production`; at Hands-off it doesn't. Cloud Run revision tags and traffic splits give staging (0% traffic), canary (10%) and rollback without a second service.
 - **The ledger is a branch.** `ledger.json`, an append-only `audit.jsonl` and `traffic.json` live on a `ledger` branch. Every writer takes `resource_group: ledger`. The Probation Board on GitLab Pages, the Probation Clerk agent and the MCP server all read from it.
-- **The census is honest about its blind spot.** A 7-day window can't see a monthly client, so `probation/synthetics.yml` lists known long-period clients and the soak hits the canary with them. A rollback becomes a learning signal: the candidate is labelled `undertaker::do-not-bury` and the census skips it.
-- **Tested without the cloud.** The gate, ledger, census, SCI and board are pure modules with Vitest tests. A local GitLab simulator runs the CI entry points end to end, and `npm run demo:mock` plays the four acts offline.
+- **The census is honest about its blind spot.** A 7-day window can't see a monthly client, so `probation/synthetics.yml` lists known long-period clients and the soak hits the canary with them. In parallel, `soak:canary-logs` reads the canary revision's real requests from Cloud Logging and `soak:canary-signal` fails the soak on a 5xx rate or on hits to deleted routes above the previous revision's baseline. A failed synthetic triggers `rollback:soak` at once. A rollback becomes a learning signal: the candidate is labelled `undertaker::do-not-bury` and the census skips it.
+- **Tested without the cloud.** The gate, ledger, census, SCI, board and replay are pure modules with Vitest tests. A local GitLab simulator runs the CI entry points end to end, and `npm run demo:mock` plays the five acts offline. A docs check in the test suite fails CI if this text names a job, file, script or threshold the code doesn't have.
+- **Set up and rehearsed from the terminal.** `npm run gitlab:setup` creates the labels, schedule, protected tag and MR settings idempotently; `npm run doctor` is a read-only preflight before any credits are spent; `npm run demo` drives each live act.
 
 ### All nine DevSecOps stages
 
@@ -52,9 +54,9 @@ We built both halves of the answer on GitLab:
 | Package | `package:image`, `catalog-sync` | Cloud Build → Artifact Registry image per commit; the flow and the Clerk agent published to the AI Catalog on `catalog-*` tags |
 | Secure | SAST, Secret Detection and Dependency Scanning templates; `secure:npm-audit` | Findings diffed against main's baseline by the gate. A new finding blocks the MR and costs −30. Auth and CI paths are forbidden zones. |
 | Release | `release:plan`, `release:run` → `deploy:staging` → `approve:production` → `deploy:canary` → `promote:production`; `govern:release-notes` | A child pipeline shaped by the earned level; a GitLab Release per deploy |
-| Configure | `ci/deploy.sh`, `ci/gcp-auth.sh`, `probation/policy.yml` | Cloud Run revision tags, traffic splits, flag env vars per revision and Secret Manager, all from CI; keyless GitLab → GCP auth (Workload Identity Federation); autonomy itself as reviewed config |
-| Monitor | `soak:canary`, `rollback:production`, `measure:sci` | Structured per-request census logs in Cloud Logging; synthetic clients against the canary for 3 minutes; automatic rollback; SCI per MR |
-| Govern | `probation:gate`, `settle:survived`, `settle:rolled-back`, `probation:sweep`, `govern:baseline`, `pages` | `policy.yml` + CODEOWNERS (humans own the leash); append-only ledger; 🎖️ promotion and ⬇️ demotion issues; the Probation Board; the Probation Clerk agent and MCP server |
+| Configure | `ci/deploy.sh`, `ci/gcp-auth.sh`, `probation/policy.yml`, `npm run gitlab:setup` | Cloud Run revision tags, traffic splits, flag env vars per revision and Secret Manager, all from CI; keyless GitLab → GCP auth (Workload Identity Federation); autonomy itself as reviewed config; project labels, schedule and protected tag created by script |
+| Monitor | `soak:canary`, `soak:canary-logs`, `soak:canary-signal`, `rollback:soak`, `rollback:production`, `measure:sci` | Structured per-request census logs in Cloud Logging; synthetic clients against the canary for 3 minutes; the canary's real 5xx rate and deleted-route hits versus the previous revision; automatic rollback; SCI per MR |
+| Govern | `probation:gate`, `settle:survived`, `settle:rolled-back`, `probation:sweep`, `govern:baseline`, `pages` | `policy.yml` + CODEOWNERS (humans own the leash); append-only ledger; 🎖️ promotion and ⬇️ demotion issues; the Probation Board and its ledger replay; the Probation Clerk agent and MCP server |
 
 Per-job evidence and screenshots: `docs/STAGES.md`.
 
@@ -78,7 +80,7 @@ SCI = ((E × I) + M) per R        R = 1,000 HTTP requests served
 - **I** = **432 gCO₂e/kWh**, the location-based grid intensity of `us-central1` (Iowa) in Google's 2025 region data (431.95 unrounded, 88% CFE).
 - **M** = 0.713 g per vCPU-hour of reserved time (1,200 kgCO₂e host embodied emissions over 4 years and 48 vCPUs; the host figures are our stated assumptions).
 
-**What we report, honestly:** deleting dead code barely moves per-request CPU. It shrinks the image every cold start pulls and the module loading at boot. The 🌱 MR note shows each component, main vs MR, so the saving is visible where it is real. `moment` and `lodash` alone are 10.4 MB of the 16 MB app layer.
+**What we report, honestly:** deleting dead code barely moves per-request CPU. It shrinks the image every cold start pulls and the module loading at boot. The 🌱 MR note shows each component, main vs MR, so the saving is visible where it is real. In the built container, `moment` and `lodash` are 5.9 MB of the 16.0 MB of production `node_modules` (37%); the deployable size `measure:sci` counts (`du -sk app`) drops from 25.9 to 15.7 MB without them (measured locally on 2026-10-27).
 
 **Measured results:**
 - ✏️ Dependency burial (moment + lodash): app layer ✏️ X MB → ✏️ Y MB, cold start ✏️ a ms → ✏️ b ms, SCI ✏️ −X% (copy from that MR's 🌱 note).
@@ -91,6 +93,7 @@ SCI = ((E × I) + M) per R        R = 1,000 HTTP requests served
 - Cloud Run scales to zero on 256 MiB instances.
 - No build step and no build artifacts: Node runs the TypeScript directly.
 - Tag pipelines run only `catalog-sync`; release tags never build.
+- The release image is `node:22.23-slim` plus production dependencies only, running as the unprivileged `node` user.
 
 Method and limits (CPU watts are an estimate, results are comparative, CI minutes not counted): `docs/SCI.md`.
 
@@ -118,7 +121,7 @@ Method and limits (CPU watts are an estimate, results are comparative, CI minute
 ## What's next
 
 - Several agents on probation side by side (a test-writer next to Undertaker), each with its own ledger.
-- Error-rate and latency signals from Cloud Monitoring in the soak, alongside synthetics.
+- Latency signals in the soak, next to the synthetics and the canary's error rate.
 - Org-wide trust that transfers between projects with similar zones.
 - Real-world thresholds (about 10× the demo's soak and scores).
 
@@ -128,13 +131,14 @@ Upload in this order (all PNG, 16:9 or wider where possible):
 1. `docs/media/cards/png/01-hook.png`: title card.
 2. `docs/media/diagrams/architecture.png`: the whole system.
 3. `docs/media/cards/png/02-ladder.png`: the autonomy ladder.
-4. `docs/media/board-light.png`: the Probation Board after the four acts.
+4. `docs/media/board-light.png`: the Probation Board after the five acts.
 5. `docs/media/cards/png/03-rollback.png`: the demotion.
 6. `docs/media/diagrams/stages.png`: the nine stages with their job names.
 7. `docs/media/cards/png/04-stages.png`: stages card from the video.
 8. `docs/media/board-dark-mobile.png`: the board on a phone, dark mode.
 9. `docs/media/cards/png/05-end.png`: closing card.
-10. ✏️ Screenshots from the live project: the gate note at Hands-off, the `soak:canary` 404 log, Cloud Run revisions with traffic split, a 🌱 SCI note.
+10. `docs/media/replay-frames/03.png`: the ledger replay at the rollback.
+11. ✏️ Screenshots from the live project: the gate note at Hands-off, the `soak:canary` 404 log, Cloud Run revisions with traffic split, a 🌱 SCI note.
 
 ## Built with
 

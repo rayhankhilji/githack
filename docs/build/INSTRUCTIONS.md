@@ -42,14 +42,20 @@ probation/
   policy.yml            zones, thresholds, scoring (human-owned)
   synthetics.yml        soak checks
   sci-coefficients.yml  SCI coefficients
-  src/                  pure libs: policy, zones, ledger, gate, census, sci, security, mr, board, gitlab, store
-  src/cli/              CI entry points: gate, census, start-flow, replay, sci, audit, release-plan, soak, settle, baseline, board, flow-print
-  test/                 Probation tests
+  src/                  libs: policy, zones, ledger, gate, census, dig, sci, security, mr, soak-signal, sweep,
+                        board, replay, setup, demo, doccheck, gitlab, store
+  src/cli/              CI entry points: gate, census, start-flow, replay, sci, audit, release-plan, soak, settle,
+                        sweep, baseline, board, flow-print (+ common.ts helpers)
+  sim/                  in-memory GitLab fake for the e2e tests
+  test/                 Probation tests (test/e2e/ runs the real CLIs against sim/)
 flows/undertaker.yml    AI Catalog item (flow definition)
+agents/probation-clerk.yml  AI Catalog item (read-only Duo Chat agent)
+mcp/                    read-only probation MCP server (stdio), wired in .gitlab/duo/mcp.json
 ci/                     deploy.sh, gcp-auth.sh
 infra/gcp-bootstrap.sh  one-time GCP setup
-scripts/                mock-flow.ts, traffic.ts, push-to-gitlab.sh
-docs/                   build docs, RUNBOOK, SCI, DEMO_SCRIPT, SUBMISSION
+scripts/                gitlab-setup, doctor, demo, mock-flow, traffic, check-docs, render-media, record-replay,
+                        audit-pages (.ts); push-to-gitlab.sh
+docs/                   RUNBOOK, STAGES, SCI, DEMO_SCRIPT, SUBMISSION; build/ (these docs); media/
 .gitlab-ci.yml  .gitlab/{CODEOWNERS,duo/agent-config.yml}
 ```
 
@@ -60,7 +66,11 @@ docs/                   build docs, RUNBOOK, SCI, DEMO_SCRIPT, SUBMISSION
 | `npm run setup` | Install the root and app dependencies (`npm ci` ×2) |
 | `npm run dev` | Run Tallybook on :8080 |
 | `npm run check` | Lint, typecheck and all tests |
-| `npm run demo:mock` | Full Probation story offline → `.out/board.html` |
+| `npm run demo:mock` | Full Probation story offline → `.out/board.html` and `.out/replay.html` |
+| `npm run gitlab:setup` / `npm run doctor` | Create the GitLab project setup / read-only preflight (needs `GITLAB_TOKEN`, `GITLAB_PROJECT`) |
+| `npm run demo -- <status\|dig\|approve\|promote\|watch>` | Drive one live demo act (RUNBOOK §5) |
+| `npm run mcp` | Start the read-only probation MCP server on stdio |
+| `node scripts/check-docs.ts` | Check the Markdown docs against the code (also runs inside `npm test`) |
 | `npm run replay` | Verify-stage traffic replay (fixture locally) |
 | `npm run census -- --log <file> --dry-run` | Candidates from a log file, without GitLab |
 | `npm run sci -- --no-comment` | Measure SCI locally (Linux, needs `/proc`) |

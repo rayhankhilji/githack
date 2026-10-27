@@ -6,14 +6,14 @@
 - **Current focus:** P0.T8 — Push to the GitLab hackathon project and make it public
 - **Next action:** Rayhan runs `GITLAB_REPO_URL=… scripts/push-to-gitlab.sh` (docs/RUNBOOK.md §1)
 - **Blocked:** P0.T8–P0.T10 need Rayhan's GitLab and GCP accounts
-- **Last updated:** 2026-10-26 by Claude
+- **Last updated:** 2026-10-27 by Claude
 
 ## Current Phase Checklist
 
 - [x] P0.T1 — Root tooling, MIT LICENSE (tests: `npm run check`)
-- [x] P0.T2 — Tallybook app (tests: app/test/server.test.ts, 9 tests)
+- [x] P0.T2 — Tallybook app (tests: `app/test/server.test.ts`)
 - [x] P0.T3 — Probation core (tests: T-F01-*, T-F03-*, T-F04-*, T-F06-*, T-F07-AC1)
-- [x] P0.T4 — CLIs (smoke: replay ok; census 13 candidates; SCI measured; release plan generated; mock story)
+- [x] P0.T4 — CLIs (smoke: replay ok; census candidates filed; SCI measured; release plan generated; mock story)
 - [x] P0.T5 — Flow definition (`npm run flow:print` parses)
 - [x] P0.T6 — `.gitlab-ci.yml` (parses locally; needs GitLab validation)
 - [x] P0.T7 — Infra scripts and Dockerfile (production install runs `node src/index.ts`)
@@ -101,6 +101,14 @@
   - WS8: ledger replay page (`replay.html` next to the board) and the recorded clip `docs/media/replay.webm`/`.mp4` with key frames.
   - Forbidden zone now includes `agents/**` and `mcp/**` (Rayhan approved).
 - **Tests:** 114 passed after the WS9 review fixes (soak noise floor, atomic log reads, fast rollback, final decline); docs validator 0 errors.
+- **Next:** Rayhan runs `npm run gitlab:setup` → `npm run doctor` → RUNBOOK §2–5.
+
+### 2026-10-27 — Session 5 (build swarm, wave 5)
+- **Done:**
+  - WS12: docs truth check. `probation/src/doccheck.ts` + `node scripts/check-docs.ts` verify every relative link, backticked repo path, CI job name (`.gitlab-ci.yml`, the release child pipeline, the catalog-sync component), `npm run` script and the thresholds, scores and SCI coefficients quoted in the Markdown; `probation/test/docs.test.ts` runs it in `npm test`.
+  - Docs brought up to date: the canary signal jobs and `rollback:soak`, `gitlab:setup`/`doctor`/`demo`, the ledger replay, the MCP server and Clerk; hard-coded test counts removed; the dependency size claim re-measured.
+  - Container verified for the first time with a real Docker daemon: `app/Dockerfile` builds, runs as `node` (uid 1000) on a read-only root filesystem, honours `PORT` and `K_REVISION`, stops at once on SIGTERM; `/healthz` and `/` return 200. Image 360 MB uncompressed (83.5 MB compressed); without `moment` and `lodash` it is 348 MB, and production `node_modules` shrinks from 16.0 to 10.2 MB.
+- **Tests:** `npm run check` green; docs check 0 errors; docs validator 0 errors.
 - **Next:** Rayhan runs `npm run gitlab:setup` → `npm run doctor` → RUNBOOK §2–5.
 
 ## Completed Phases

@@ -60,7 +60,7 @@
 - **GitLab API:** the error reads `GitLab <METHOD> <path> → <status>: <body≤500>`. 429 and 5xx are retried 3 times; everything else fails fast.
 - **Gate:** a blocked verdict posts the MR note *first*, then exits 1, so the reason is always visible on the MR.
 - **App:** `{error:{code,message}}`, with codes `unauthorized`, `not_found` and `fax_gateway_unavailable`, plus Fastify's validation 400.
-- **Release:** any failure in staging, canary or soak runs `rollback:production` (when: on_failure). Settle on a rollback reverts the commit.
+- **Release:** any failure in staging, canary or soak runs `rollback:production` (when: on_failure); a failed synthetic also runs `rollback:soak` at once. `soak:canary-signal` exits 3 when the canary logs are missing, which is allowed to fail (a warning, never a rollback). Settle on a rollback reverts the commit.
 
 ## 6. Reliability & Performance Budgets
 
@@ -75,7 +75,8 @@
 
 - **Code:**
   - the pure modules (`gate`, `ledger`, `census`, `sci`, `security`, `board`) have unit tests for every acceptance criterion in PRD §5;
-  - CLIs are smoke-tested locally per TESTING_GUIDE §8.
+  - CLIs are smoke-tested locally per TESTING_GUIDE §8 and end to end against the GitLab fake (`probation/test/e2e/`);
+  - the docs are checked against the code by `probation/test/docs.test.ts`.
 - **Agent eval (manual, blocking for the demo):** run Undertaker on 3 candidates (`dependency:moment`, `route:POST /api/fax-invoice`, `flag:legacyPdf`). Each run passes if:
   1. exactly one MR is opened;
   2. it removes more than it adds;
@@ -91,5 +92,5 @@ No personal data is processed. Tallybook seed data is fictional. Census logs hol
 
 ## 9. Change Control
 
-- `policy.yml`, `synthetics.yml`, `flows/`, `ci/`, `.gitlab-ci.yml` and `.gitlab/` are CODEOWNERS-protected, so changes need the owner's approval.
+- `policy.yml`, `synthetics.yml`, `flows/`, `agents/`, `mcp/`, `ci/`, `.gitlab-ci.yml`, `.gitlab/` and `app/src/auth/` are CODEOWNERS-protected, so changes need the owner's approval.
 - Scoring or threshold changes are recorded in TASK_LOG Decisions, with the reason.

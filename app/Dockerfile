@@ -6,6 +6,7 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY src ./src
+# The files stay root-owned, so the app (running as the unprivileged node user) cannot modify its own code.
 USER node
 EXPOSE 8080
 CMD ["node", "src/index.ts"]
