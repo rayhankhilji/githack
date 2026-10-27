@@ -46,3 +46,53 @@ Regenerate after any change to the replay page or the mock story: `node scripts/
 - Run `node scripts/render-media.ts` if a card or the board changed, so the PNGs match.
 - Run `npm run demo:mock` to rehearse the narration against `.out/board.html`.
 - Pre-open the tabs: the issue list, MR !n (one per act), the child pipeline logs, the board, the board's `replay.html`, and the Cloud Run revisions page.
+
+## Fallback rough cut (if live runs fail)
+
+`docs/media/demo-rough-cut.mp4` is a complete 2:50, 1920×1080 H.264 cut of this script (about 10 MB, silent), and `docs/media/demo-rough-cut.srt` holds its captions. It is a **fallback**: submit your live GitLab and Cloud Run recording when you have one. Use the rough cut only when live footage is missing or broken, either whole or as filler for the acts you could not record.
+
+It is built only from real artifacts:
+- the title cards;
+- the replay clip;
+- the board and the diagrams;
+- terminal scenes that show the real stdout of `npm run demo:mock`, of the Probation CLIs (census, start-flow, gate, release-plan, soak, settle) and of `npm run demo -- status`, all run against the GitLab API simulator in `probation/sim` and seeded the way the e2e story test seeds it;
+- the gate notes that `gate.ts` posted to that simulator, shown as MR comments.
+
+A label in the top corner of every frame reads "Offline rehearsal · GitLab API simulator + mock ledger · live runs: see repo", so judges are never misled. There is no voice: no local TTS is available, so the voice-over lines are burned in as captions. To add narration, record or generate it against the `.srt` timings.
+
+Regenerate with `node scripts/render-video.ts`. It takes about 4 minutes and uses the global Playwright + Chromium and the system `ffmpeg`, like the other media scripts. Intermediate files go to `.out/video/`. With `--reuse-clips` it keeps the scene clips and only re-assembles the cut, which is useful after a caption change.
+
+| Time | Scene | Splice live footage here |
+|---|---|---|
+| 0:00–0:04 | Card 01-hook | — |
+| 0:04–0:12 | Board: trust chart | Live board |
+| 0:12–0:28 | Repo: `ls`, `wc -l`, grep for moment and lodash | Tallybook repo in GitLab |
+| 0:28–0:48 | census stdout + `npm run demo -- status` | `census:collect` log + 🪦 issue list |
+| 0:48–0:54 | Architecture diagram, push-in | Undertaker flow session |
+| 0:54–1:02 | start-flow + gate stdout | Flow session → MR |
+| 1:02–1:09 | Gate note 🧑‍⚖️ Assisted (MR !1) | Live MR note |
+| 1:09–1:15 | Card 02-ladder | — |
+| 1:15–1:28 | release-plan + settle survived + status | Child pipeline: staging → canary → soak → promote |
+| 1:28–1:33 | Replay 0:03–0:08 | MR note "+10 → Supervised", 🎖️ issue |
+| 1:33–1:40 | `demo:mock` acts 2–3 | Act 2–3 ⏩ montage |
+| 1:40–1:48 | Replay 0:08.5–0:16.5 (Hands-off) | 🎖️ Hands-off issue |
+| 1:48–1:54 | Gate note 🟢 Hands-off (MR !4) | Live MR !4 note |
+| 1:54–2:04 | gate + `soak --signal` FAIL (404) | Live soak log with the 404 |
+| 2:04–2:09 | Card 03-rollback | — |
+| 2:09–2:17 | settle rolled_back + revert + status | Rollback job, revert commit |
+| 2:17–2:23 | Replay 0:17–0:23 (rollback) | ⬇️ demotion issue, do-not-bury label |
+| 2:23–2:29 | Board stats + SCI sparkline | MR 🌱 SCI note |
+| 2:29–2:35 | Stages diagram | — |
+| 2:35–2:39 | Card 04-stages | — |
+| 2:39–2:44 | Replay 0:24.4–0:30.4 (closing record) | Live board |
+| 2:44–2:50 | Card 05-end | — |
+
+To splice a live clip over a range, overlay it full-frame. The live frames then replace the label and the burned captions for that range, so upload the `.srt` to YouTube as subtitles to keep the captions everywhere. For example, to drop a 10 s live soak log over 1:54–2:04:
+
+```bash
+ffmpeg -i docs/media/demo-rough-cut.mp4 -i live-soak.mp4 -filter_complex \
+  "[1:v]scale=1920:1080,setpts=PTS-STARTPTS+114.4/TB[l];[0:v][l]overlay=enable='between(t,114.4,124.4)':eof_action=pass[v]" \
+  -map "[v]" -c:v libx264 -crf 20 -pix_fmt yuv420p spliced.mp4
+```
+
+Scene boundaries are exact to 0.1 s: the script prints them when it finishes. Keep any live footage you have; the rough cut only fills the gaps.
