@@ -9,6 +9,10 @@ GitLab Transcend "Life After Code" hackathon entry · Path A (Start Fresh) · Ca
 - **Undertaker** is a GitLab Duo Agent Platform flow that can only *delete*, and only code that production telemetry proves is dead.
 - **Probation** is the deterministic CI system that decides how much autonomy Undertaker has, per code zone. Autonomy is earned through deploys that survive a production canary soak, and lost on rollback.
 
+**The twist:** autonomy is not a setting. The agent earns it in production, zone by zone, and loses it the moment it breaks something.
+
+👩‍⚖️ **Judging?** Start with [`docs/JUDGES.md`](docs/JUDGES.md): a 2-minute path through the demo, the evidence and how to verify each claim.
+
 | Level | Trust score in the zone | What the pipeline lets the agent do |
 |---|---|---|
 | 🧑‍⚖️ **Assisted** | < 10 | Open an MR. A human merges it and approves production. |
@@ -26,6 +30,10 @@ A surviving soak earns +10; a rollback costs −40 (instant demotion), a human r
 | 🧾 Tallybook on Cloud Run | ✏️ `https://tallybook-….run.app` |
 | 📄 Devpost page | ✏️ link |
 | 📼 Ledger replay (30 s, offline story) | [`docs/media/replay.webm`](docs/media/replay.webm) · live as `replay.html` next to the board |
+| 🎛️ Gate playground | `playground.html` next to the board: move the scores and watch the real gate decide ([screenshot](docs/media/playground.png)) |
+| 🎞️ Fallback video (offline rehearsal) | [`docs/media/demo-rough-cut.mp4`](docs/media/demo-rough-cut.mp4), 2:50 with captions in [`docs/media/demo-rough-cut.srt`](docs/media/demo-rough-cut.srt) |
+
+> **Honest status.** The CI pipeline, the gate, the ledger, the census, SCI measurement, the board, a real Docker build of Tallybook and the schema-validated flow and agent are built, with 170+ tests including an end-to-end suite of the real CLIs against a local GitLab API simulator (`probation/sim/`). The live Google Cloud deploy and the live Duo flow runs have **not** been executed yet: until they are, the Pages board shows an "Offline rehearsal" banner over the scripted ledger from `npm run demo:mock`, and the fallback video is labelled offline rehearsal.
 
 ![Architecture: Cloud Run logs feed a census that files candidate issues; the Undertaker flow opens a deletion MR; the MR pipeline runs verify, secure, SCI and the Probation gate; a release child pipeline deploys staging, canary, soak, then promotes or rolls back; settle jobs write the ledger branch that feeds the Probation Board and the Probation Clerk.](docs/media/diagrams/architecture.png)
 
@@ -39,7 +47,9 @@ A surviving soak earns +10; a rollback costs −40 (instant demotion), a human r
 4. **Release on probation (package · release · configure · monitor).** After merge, `release:plan` generates a child pipeline shaped by the verdict: `deploy:staging` (new Cloud Run revision, 0% traffic) → `approve:production` (manual unless Hands-off) → `deploy:canary` (10% of real traffic) → the soak → `promote:production`. The soak has two independent checks: `soak:canary` runs synthetic clients against the canary for 3 minutes, and `soak:canary-signal` reads the canary's real requests from Cloud Logging (collected by `soak:canary-logs`) and fails on a 5xx rate or on hits to deleted routes beyond the previous revision's baseline. If a synthetic fails, `rollback:soak` takes traffic off the canary at once; if anything fails, `rollback:production` puts traffic back on the previous revision.
 5. **Settle (govern).** `settle:survived` scores +10 per zone. `settle:rolled-back` scores −40, reverts the commit and marks the candidate `undertaker::do-not-bury` forever. Every change is appended to the `ledger` branch, opens a 🎖️ promotion or ⬇️ demotion issue when a level changes, and is published on the **Probation Board** (GitLab Pages), with an animated ledger replay (`replay.html`) next to it. The **Probation Clerk**, a read-only custom Duo agent, answers "why is this zone Assisted?" in Duo Chat from `policy.yml` and the ledger; the probation MCP server gives Duo Agentic Chat in the IDE the same answers.
 
-**In the demo,** Undertaker climbs from Assisted to Hands-off in the legacy zone, then buries `GET /api/v1/export.csv`: zero hits in seven days. A bookkeeping partner calls it once a month. The canary soak catches the 404, traffic rolls back, the commit is reverted, and Undertaker drops to Assisted. Autonomy you can earn, and lose.
+**In the demo,** Undertaker climbs from Assisted to Hands-off in the legacy zone, then buries `GET /api/v1/export.csv`: zero hits in seven days. But a bookkeeping partner calls it once a month. The canary soak catches the 404, traffic rolls back, the commit is reverted, the grave is marked do-not-bury, and Undertaker drops straight to Assisted, with no human in the loop. Autonomy you can earn, and lose.
+
+**Why a platform team would use it:** it turns "do we trust the agent?" into a reviewed policy file, a per-zone score anyone can query and an append-only audit trail, so autonomy can be granted gradually instead of all or nothing.
 
 ## All nine DevSecOps stages
 
@@ -74,10 +84,10 @@ Every MR and main pipeline measures Tallybook with the Green Software Foundation
 npm run setup          # Node ≥ 22.18; installs the root and app/ dependencies
 npm run check          # Biome lint + tsc typecheck + the Vitest suite
 npm run dev            # Tallybook on http://localhost:8080
-npm run demo:mock      # the whole Probation story offline → .out/board.html and .out/replay.html
+npm run demo:mock      # the whole story offline → .out/board.html, replay.html and playground.html
 ```
 
-`npm run demo:mock` needs no GitLab, Google Cloud or Duo credits: it plays the five acts (climb, fall, recovery) through the real gate and ledger code with scripted production outcomes, then renders the board and the replay. The CLIs are also tested end to end against a local GitLab simulator (`probation/sim/`, `probation/test/e2e/`). To deploy for real on GitLab and Google Cloud, follow [`docs/RUNBOOK.md`](docs/RUNBOOK.md): `npm run gitlab:setup` creates the labels, schedule, protected tag and MR settings, `npm run doctor` is a read-only preflight before spending credits, and `npm run demo` drives each act of the live demo from the terminal.
+`npm run demo:mock` needs no GitLab, Google Cloud or Duo credits: it plays the five acts (climb, fall, recovery) through the real gate and ledger code with scripted production outcomes, then renders the board, the replay and the gate playground. The CLIs are also tested end to end against a local GitLab simulator (`probation/sim/`, `probation/test/e2e/`). To deploy for real on GitLab and Google Cloud, follow [`docs/RUNBOOK.md`](docs/RUNBOOK.md): `npm run gitlab:setup` creates the labels, schedule, protected tag and MR settings, `npm run doctor` is a read-only preflight before spending credits, `npm run demo` drives each act of the live demo from the terminal, and `npm run submission` fills the marked placeholders in these docs from the live ledger once the runs exist.
 
 ## The app
 
@@ -96,12 +106,13 @@ npm run demo:mock      # the whole Probation story offline → .out/board.html a
 | [`mcp/`](mcp/) | Read-only probation MCP server (`get_trust`, `list_graves`, `explain_gate`, `policy`), wired in `.gitlab/duo/mcp.json` |
 | [`probation/policy.yml`](probation/policy.yml) | Zones, thresholds, scoring, soak and census settings (CODEOWNERS-protected) |
 | [`probation/synthetics.yml`](probation/synthetics.yml) | The clients the soak checks, including the monthly partner export |
-| [`probation/src/`](probation/src/) | Gate, ledger, census, SCI, board and replay (pure, tested) plus `cli/` CI entry points |
+| [`probation/src/`](probation/src/) | Gate, ledger, census, SCI, board, replay and gate playground (pure, tested) plus `cli/` CI entry points |
 | `probation/sim/`, `probation/test/e2e/` | Local GitLab simulator and end-to-end tests of the CI entry points |
 | [`.gitlab-ci.yml`](.gitlab-ci.yml) | MR, main, release-child and schedule pipelines |
 | [`scripts/`](scripts/) | GitLab setup and preflight, the live-demo driver, the offline mock story, media rendering, `check-docs.ts` (keeps these docs true to the code) |
 | [`ci/`](ci/), [`infra/`](infra/) | Cloud Run deploy, canary and rollback; one-time GCP bootstrap (keyless WIF) |
 | [`app/`](app/) | Tallybook, the app being cleaned |
+| [`docs/JUDGES.md`](docs/JUDGES.md) | The 2-minute judging path |
 | [`docs/STAGES.md`](docs/STAGES.md) | The nine stages, job by job |
 | [`docs/SCI.md`](docs/SCI.md) | Carbon measurement method |
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Deploy to GitLab and Google Cloud |
